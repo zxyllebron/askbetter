@@ -21,7 +21,7 @@ import dbus.service
 from dbus.mainloop.glib import DBusGMainLoop
 from crossplatform.core import Backend, Settings, MODEL_ID
 from crossplatform.geometry import LayoutGate
-from linux.accessibility import DesktopAccess
+from linux.accessibility import DesktopAccess, PasteRequired
 
 BUS = "org.askbetter.Desktop"
 PATH = "/org/askbetter/Desktop"
@@ -94,6 +94,7 @@ class Service(dbus.service.Object):
         self.context = {}
         self.current = None
         self.pending = None
+        self.paste_pending = None
         self.undo = None
         self.panel = None
         self.last_input = self.last_result = ""
@@ -165,7 +166,7 @@ class Service(dbus.service.Object):
         threading.Thread(target=work, daemon=True).start()
 
     def _complete(self, draft, result, target, error):
-        self.busy = False
+        self.busy = bool(target and result and not error)
         self.last_input, self.last_result = draft, result
         if self.panel and result:
             self.panel_output.get_buffer().set_text(result)
@@ -194,10 +195,48 @@ class Service(dbus.service.Object):
             self.access.replace(target, draft, result, self._context(context))
             self.undo = (target, result, draft)
             self._status("优化完成；Ctrl+Alt+Z 撤销")
+            self.busy = False
+            return True
+        except PasteRequired:
+            self.paste_pending = pending
+            self.PasteReady(ticket)
             return True
         except Exception as error:
+            self.busy = False
             self._status(str(error) + "；结果可在单独对话框查看")
             return False
+
+    @dbus.service.signal(BUS, signature="s")
+    def PasteReady(self, ticket):
+        pass
+
+    @dbus.service.method(BUS, in_signature="ss", out_signature="s")
+    def PreparePaste(self, ticket, context):
+        pending = self.paste_pending
+        if not pending or pending[0] != ticket or time.monotonic()-pending[4] > 5:
+            return ""
+        try:
+            self.access.prepare_paste(pending[1], pending[2], self._context(context))
+            return pending[3]
+        except Exception as error:
+            self.paste_pending = None
+            self.busy = False
+            self._status(str(error))
+            return ""
+
+    @dbus.service.method(BUS, in_signature="ss", out_signature="b")
+    def FinishPaste(self, ticket, context):
+        pending, self.paste_pending = self.paste_pending, None
+        self.busy = False
+        if not pending or pending[0] != ticket:
+            return False
+        _, target, draft, result, _ = pending
+        if self.access.unchanged(target, result, self._context(context)):
+            self.undo = (target, result, draft)
+            self._status("优化完成；Ctrl+Alt+Z 撤销")
+            return True
+        self._status("未能验证回填；结果可在单独对话框查看")
+        return False
 
     @dbus.service.method(BUS, in_signature="s", out_signature="b")
     def Undo(self, context):
@@ -208,6 +247,12 @@ class Service(dbus.service.Object):
             self.access.replace(target, result, draft, self._context(context))
             self.undo = None
             self._status("已恢复原稿")
+            return True
+        except PasteRequired:
+            self.busy = True
+            ticket = uuid.uuid4().hex
+            self.paste_pending = (ticket, target, result, draft, time.monotonic())
+            self.PasteReady(ticket)
             return True
         except Exception as error:
             self._status(str(error))

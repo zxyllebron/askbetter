@@ -120,6 +120,8 @@ export default class AskBetter extends Extension {
                     this._proxySignal = this._proxy.connect('g-signal', (_, sender, name, params) => {
                         if (name === 'ResultReady')
                             this._call('Commit', '(ss)', [params.deep_unpack()[0], JSON.stringify(this._context())]);
+                        else if (name === 'PasteReady')
+                            this._paste(params.deep_unpack()[0]);
                     });
                 } catch (error) {
                     console.error(`AskBetter service: ${error.message}`);
@@ -158,6 +160,49 @@ export default class AskBetter extends Extension {
         const rect = window.get_frame_rect();
         return {pid: window.get_pid(), windowId: String(window.get_stable_sequence()), title: window.get_title(),
             buffer: {x: rect.x, y: rect.y, width: rect.width, height: rect.height}, moving: this._moving};
+    }
+
+    _paste(ticket) {
+        const clipboard = St.Clipboard.get_default();
+        const type = St.ClipboardType.CLIPBOARD;
+        const formats = clipboard.get_mimetypes(type) ?? [];
+        const mime = formats.find(value => value.startsWith('image/')) ??
+            formats.find(value => value.startsWith('text/plain')) ?? formats[0];
+        const save = callback => {
+            if (mime)
+                clipboard.get_content(type, mime, (_, bytes) => callback(bytes));
+            else
+                callback(null);
+        };
+        save(original => {
+            const context = this._context();
+            this._call('PreparePaste', '(ss)', [ticket, JSON.stringify(context)], values => {
+                const result = values?.[0];
+                if (!result || this._context().windowId !== context.windowId)
+                    return;
+                clipboard.set_text(type, result);
+                this._keyboard ??= Clutter.get_default_backend().get_default_seat()
+                    .create_virtual_device(Clutter.InputDeviceType.KEYBOARD_DEVICE);
+                const key = (symbol, pressed) => this._keyboard.notify_keyval(GLib.get_monotonic_time(),
+                    symbol, pressed ? Clutter.KeyState.PRESSED : Clutter.KeyState.RELEASED);
+                key(Clutter.KEY_Control_L, true);
+                key(Clutter.KEY_v, true);
+                key(Clutter.KEY_v, false);
+                key(Clutter.KEY_Control_L, false);
+                GLib.timeout_add(GLib.PRIORITY_DEFAULT, 350, () => {
+                    this._call('FinishPaste', '(ss)', [ticket, JSON.stringify(this._context())]);
+                    clipboard.get_text(type, (_, current) => {
+                        if (current === result) {
+                            if (original)
+                                clipboard.set_content(type, mime, original);
+                            else
+                                clipboard.set_text(type, '');
+                        }
+                    });
+                    return GLib.SOURCE_REMOVE;
+                });
+            });
+        });
     }
 
     _watchWindow() {

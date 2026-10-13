@@ -132,8 +132,28 @@ class DesktopAccess:
     def replace(self, target, draft, result, context):
         if not self.unchanged(target, draft, context):
             raise RuntimeError("Input box or draft changed; the original was preserved")
-        editable = target.editor.queryEditableText()
+        try:
+            editable = target.editor.queryEditableText()
+        except NotImplementedError:
+            raise PasteRequired()
         if editable.setTextContents(result) is False:
             raise RuntimeError("Codex did not accept the replacement; result available in the standalone dialog")
         if self.read(target) != result:
             raise RuntimeError("Unable to verify the replacement; check the draft before sending")
+
+    def prepare_paste(self, target, draft, context):
+        if not self.unchanged(target, draft, context):
+            raise RuntimeError("Input box or draft changed; the original was preserved")
+        if not target.editor.queryComponent().grabFocus():
+            raise RuntimeError("Unable to focus the original input box")
+        text = target.editor.queryText()
+        if text.getNSelections():
+            selected = text.setSelection(0, 0, text.characterCount)
+        else:
+            selected = text.addSelection(0, text.characterCount)
+        if selected is False:
+            raise RuntimeError("Unable to select the original draft safely")
+
+
+class PasteRequired(Exception):
+    """Chromium exposes text selection but no EditableText interface."""

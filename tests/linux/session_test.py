@@ -103,6 +103,9 @@ try:
     assert abs(current['x']-expected.x)<1 and abs(current['y']-expected.y)<1,current
     measured=command('geometry')
     frame=current['context']['buffer']
+    if kind == 'gtk':
+        measured['y'] += frame['height']-measured['outerHeight']
+        measured['outerHeight'] = frame['height']
     sx,sy=frame['width']/measured['outerWidth'],frame['height']/measured['outerHeight']
     independent_x=frame['x']+measured['x']*sx-34
     independent_y=frame['y']+measured['y']*sy+(measured['height']*sy-26)/2
@@ -122,6 +125,7 @@ try:
 
     command('set',text='优化前的草稿')
     driver.Action('click')
+    wait(lambda:json.loads(str(helper.Poll(json.dumps(state()['context']))))['busy'],'optimization captured the original draft')
     command('set',text='优化期间的新编辑')
     wait(lambda:'未覆盖' in (state().get('caption') or '') or 'preserved' in (state().get('caption') or ''),'changed draft rejected')
     assert command('get')=='优化期间的新编辑'
@@ -129,6 +133,7 @@ try:
 
     command('set',text='相同草稿，不同窗口')
     driver.Action('click')
+    wait(lambda:json.loads(str(helper.Poll(json.dumps(state()['context']))))['busy'],'optimization started before changing windows')
     command('new',text='相同草稿，不同窗口')
     wait(lambda:driver.Action('focus2') or state().get('focusedTitle')=='AskBetter fixture 2','second fixture receives focus')
     wait(lambda:state().get('focusedTitle')=='AskBetter fixture 2','new foreground window')
