@@ -123,6 +123,7 @@ try:
     finally:
         driver.Action('ctrl-up')
     checks.append('Ctrl alone keeps the circular button visible')
+    initial_clipboard_formats=state().get('clipboardFormats') or []
 
     for style in ('brief','moderate','detailed'):
         driver.Action(style)
@@ -136,6 +137,9 @@ try:
         wait(lambda:command('get')==draft,'undo replacement')
         wait(lambda:not json.loads(str(helper.Poll(json.dumps(state()['context']))))['busy'],'undo verification completes')
         checks.append(style+' button -> fake Codex -> draft replacement -> undo')
+    if kind.startswith('electron') and not initial_clipboard_formats:
+        wait(lambda:not state().get('clipboardFormats'),'empty clipboard restored safely')
+        checks.append('empty clipboard restored without a zero-byte GNOME memory source')
 
     command('set',text='优化前的草稿')
     driver.Action('click')

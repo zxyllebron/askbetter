@@ -182,7 +182,15 @@ export default class AskBetter extends Extension {
                 const result = values?.[0];
                 if (!result || this._context().windowId !== context.windowId)
                     return;
+                const selection = global.display.get_selection();
+                const selectionType = Meta.SelectionType.SELECTION_CLIPBOARD;
+                let ownedSource = null;
+                const changed = selection.connect('owner-changed', (_, changedType, source) => {
+                    if (changedType === selectionType)
+                        ownedSource = source;
+                });
                 clipboard.set_text(type, result);
+                selection.disconnect(changed);
                 this._keyboard ??= Clutter.get_default_backend().get_default_seat()
                     .create_virtual_device(Clutter.InputDeviceType.KEYBOARD_DEVICE);
                 const key = (symbol, pressed) => this._keyboard.notify_keyval(GLib.get_monotonic_time(),
@@ -195,10 +203,12 @@ export default class AskBetter extends Extension {
                     this._call('FinishPaste', '(ss)', [ticket, JSON.stringify(this._context())]);
                     clipboard.get_text(type, (_, current) => {
                         if (current === result) {
-                            if (original)
+                            if (original && original.get_size() > 0)
                                 clipboard.set_content(type, mime, original);
-                            else
-                                clipboard.set_text(type, '');
+                            else if (ownedSource)
+                                // GNOME 46 cannot create a memory source from
+                                // zero bytes. Relinquish our owner instead.
+                                selection.unset_owner(selectionType, ownedSource);
                         }
                     });
                     return GLib.SOURCE_REMOVE;

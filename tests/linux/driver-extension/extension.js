@@ -2,6 +2,7 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import Meta from 'gi://Meta';
 import Clutter from 'gi://Clutter';
+import St from 'gi://St';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
@@ -24,6 +25,7 @@ export default class Driver extends Extension {
         const context=extension?._context?.() ?? {};
         const window=global.display.focus_window;
         return JSON.stringify({context,xwaylandDisplay:GLib.getenv('DISPLAY'),xwaylandAuthority:GLib.getenv('XAUTHORITY'),
+            clipboardFormats:St.Clipboard.get_default().get_mimetypes(St.ClipboardType.CLIPBOARD),
             focusedClass:window?.get_wm_class(),focusedTitle:window?.get_title(),
             enabled:global.settings.get_strv('enabled-extensions'),disabled:global.settings.get_strv('disabled-extensions'),
             overview:Main.overview.visible,inflight:extension?._inflight,
