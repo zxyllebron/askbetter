@@ -2,9 +2,22 @@
 
 English | [简体中文](README.zh-CN.md)
 
-A community-built prompt editor for the Codex desktop app on Windows. Click the small circular button beside the model selector to organize and refine your draft, then review the result in the same input box before sending.
+A community-built prompt editor for the Codex desktop app. Windows is the original implementation; macOS and Ubuntu 24.04 GNOME ports are available in preview. Click the small circular button beside the model selector to organize and refine your draft, then review the result in the same input box before sending.
 
-Includes a portable executable, editable optimization prompts, C# source code, and a reusable Agent Skill.
+Includes portable apps, editable optimization prompts, C#/Swift/Python source code, and a reusable Agent Skill.
+
+## Platform downloads
+
+Each platform has its own download path. The Ubuntu package targets GNOME 46 in both X11 and Wayland sessions. Mac packages include their Python helper runtime.
+
+| Platform | Download | Setup guide |
+| --- | --- | --- |
+| Windows 10/11 | [Windows ZIP](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.1/AskBetter-Windows.zip) | [Quick start below](#windows-quick-start) |
+| macOS 13+, Apple Silicon | [macOS arm64 ZIP](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.1/AskBetter-macOS-arm64.zip) | [macOS guide](https://github.com/zxyllebron/askbetter/blob/main/macos/README.md) |
+| macOS 13+, Intel | [macOS x86_64 ZIP](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.1/AskBetter-macOS-x86_64.zip) | [macOS guide](https://github.com/zxyllebron/askbetter/blob/main/macos/README.md) |
+| Ubuntu 24.04, GNOME 46 | [Ubuntu X11/Wayland package](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.1/AskBetter-Ubuntu-24.04-GNOME.tar.gz) | [Ubuntu guide](https://github.com/zxyllebron/askbetter/blob/main/linux/README.md) |
+
+The new ports are preview builds. Review the [platform test report](https://github.com/zxyllebron/askbetter/blob/main/docs/platform-testing.md) for the distinction between real OS integration tests, editor fixtures, and signed-in Codex-client validation. The existing [Windows v1.0.0 release](https://github.com/zxyllebron/askbetter/releases/tag/v1.0.0) remains available.
 
 ## Features
 
@@ -18,7 +31,7 @@ Includes a portable executable, editable optimization prompts, C# source code, a
 
 The desktop interface and bundled optimization instructions currently use Chinese. You can customize the instruction files.
 
-## Quick start
+## Windows quick start
 
 [Download the Windows package](https://github.com/zxyllebron/askbetter/releases/latest/download/AskBetter-Windows.zip) · [All releases](https://github.com/zxyllebron/askbetter/releases)
 
@@ -26,7 +39,7 @@ The desktop interface and bundled optimization instructions currently use Chines
 
 Windows 10/11 (64-bit), .NET Framework 4.8, the Codex desktop app, and an installed, signed-in Codex CLI. An internet connection and access to the selected model, Low reasoning, and Fast mode are required.
 
-The button uses Windows UI Automation and requires a recognizable local Codex/ChatGPT desktop input box. It does not support browser, IDE, macOS, or Linux interfaces. The Agent Skill can be used separately in compatible clients.
+The Windows executable uses Windows UI Automation and requires a recognizable local Codex/ChatGPT desktop input box. Use the separate packages above on Mac or Ubuntu. Browser and IDE input boxes are outside the scope of these desktop adapters. The Agent Skill can be used separately in compatible clients.
 
 ### Run
 
@@ -95,6 +108,8 @@ The skill returns JSON according to the selected instructions. It does not add a
 
 ## Build, test, and package
 
+The commands below build the Windows implementation. For native ports, follow the [Mac build guide](https://github.com/zxyllebron/askbetter/blob/main/macos/README.md#build) or run `python3 scripts/package_linux.py` to package Ubuntu. Cross-platform backend checks use `python3 -m unittest discover -s tests/portable -p 'test_*.py' -v`. GitHub Actions runs native Mac builds and Ubuntu desktop integration checks.
+
 These commands require the full source repository. Run them from the repository root:
 
 ~~~powershell
@@ -132,6 +147,10 @@ askbetter/             Portable app, settings template, editing prompts, and ski
   agents/              Skill display metadata
 tests/                 Offline tests and simulated app-server
 scripts/               Test and release packaging scripts
+crossplatform/         Shared Python app-server client and draft/geometry guards
+macos/                 Native AppKit/Accessibility adapter and build script
+linux/                 AT-SPI service and GNOME extension for X11/Wayland
+docs/                  Platform verification and compatibility details
 README.md              English documentation
 README.zh-CN.md        Chinese documentation
 LICENSE

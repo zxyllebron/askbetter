@@ -8,7 +8,7 @@ This is a preview port. See the repository's platform test report for verified c
 
 1. Install and sign in to the Codex CLI, and install the Codex/ChatGPT desktop app.
 2. Extract `AskBetter-Ubuntu-24.04-GNOME.tar.gz` into a writable folder.
-3. Open a terminal in the extracted folder and run `./install.sh --install-deps`. This installs the required Ubuntu packages and enables the AskBetter desktop extension for your user. Do not run the whole installer as root.
+3. Open a terminal in the extracted folder and run `./install.sh --install-deps`. This installs the required Ubuntu packages, enables GNOME toolkit accessibility for AT-SPI, and enables the AskBetter desktop extension for your user. Do not run the whole installer as root.
 4. If prompted, log out and back in once. Then return to Codex; the circular button appears automatically to the left of the model selector.
 
 If dependencies are already installed, use `./install.sh` without sudo. The same package supports both display-server sessions; you do not need to switch to X11.

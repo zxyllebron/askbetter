@@ -10,6 +10,7 @@
 *.py text eol=lf
 *.swift text eol=lf
 *.js text eol=lf
+*.cjs text eol=lf
 *.xml text eol=lf
 *.svg text eol=lf
 *.exe binary

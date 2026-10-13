@@ -2,12 +2,16 @@ name: Platform builds and checks
 on:
   push:
     branches: [main, 'codex/cross-platform']
+  pull_request:
+    branches: [main]
   workflow_dispatch:
+concurrency:
+  group: platforms-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
   portable:
-    if: ${{ github.ref != 'refs/heads/codex/cross-platform' || !contains(github.event.head_commit.message, '[linux-only]') }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -20,7 +24,6 @@ jobs:
           name: AskBetter-Ubuntu-24.04-GNOME
           path: artifacts/linux/*.tar.gz
   macos:
-    if: ${{ github.ref != 'refs/heads/codex/cross-platform' || !contains(github.event.head_commit.message, '[linux-only]') }}
     strategy:
       fail-fast: false
       matrix:
@@ -91,7 +94,6 @@ jobs:
           name: Linux-desktop-${{ matrix.session }}-${{ matrix.fixture }}-reports
           path: artifacts/tests/
   windows:
-    if: ${{ github.ref != 'refs/heads/codex/cross-platform' || !contains(github.event.head_commit.message, '[linux-only]') }}
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4

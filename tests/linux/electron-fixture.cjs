@@ -16,7 +16,10 @@ function html(title,draft) {
       </style></head><body><div>AskBetter CI — browser-backed editor fixture</div>
       <div id="editor" contenteditable="plaintext-only" role="textbox" aria-label="Work with Codex" aria-multiline="true">${escaped}</div>
       <div id="toolbar"><button id="model">GPT-6 Luna</button><button>Microphone</button><button id="send">Send</button></div>
-      </body></html>`;
+      <script>window.__askbetterSent=false;
+      document.getElementById('send').onclick=()=>window.__askbetterSent=true;
+      document.getElementById('editor').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){window.__askbetterSent=true;e.preventDefault();}};
+      </script></body></html>`;
 }
 async function create(title,draft) {
     const window=new BrowserWindow({width:900,height:650,title,
@@ -41,10 +44,13 @@ app.whenReady().then(async()=>{
             await create('AskBetter fixture 2',request.text);
         else if(request.op==='focus')
             window.focus();
-        else if(request.op==='quit')
+        else if(request.op==='quit') {
+            console.log(JSON.stringify({id:request.id,text:''}));
             app.quit();
+            break;
+        }
         const text=await window.webContents.executeJavaScript("document.getElementById('editor').innerText");
-        const reply={id:request.id,text};
+        const reply={id:request.id,text,sent:await window.webContents.executeJavaScript('window.__askbetterSent')};
         if(request.op==='geometry')
             reply.geometry=await window.webContents.executeJavaScript(`(()=>{const r=document.getElementById('model').getBoundingClientRect(); const border=(outerWidth-innerWidth)/2; return {x:r.x+border,y:r.y+(outerHeight-innerHeight)-border,width:r.width,height:r.height,outerWidth,outerHeight};})()`);
         console.log(JSON.stringify(reply));

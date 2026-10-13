@@ -23,7 +23,8 @@ export default class Driver extends Extension {
         const extension=this._extension();
         const context=extension?._context?.() ?? {};
         const window=global.display.focus_window;
-        return JSON.stringify({context,xwaylandDisplay:GLib.getenv('DISPLAY'),focusedClass:window?.get_wm_class(),focusedTitle:window?.get_title(),
+        return JSON.stringify({context,xwaylandDisplay:GLib.getenv('DISPLAY'),xwaylandAuthority:GLib.getenv('XAUTHORITY'),
+            focusedClass:window?.get_wm_class(),focusedTitle:window?.get_title(),
             enabled:global.settings.get_strv('enabled-extensions'),disabled:global.settings.get_strv('disabled-extensions'),
             overview:Main.overview.visible,inflight:extension?._inflight,
             hiddenFor:((extension?._hiddenUntil ?? 0)-GLib.get_monotonic_time())/1000,

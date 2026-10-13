@@ -2,7 +2,20 @@
 
 Windows 上的 Codex 桌面提示词优化助手。点击输入框模型选择器旁的小圆钮，将草稿改写得更有条理，并直接回填，供你检查后发送。
 
+新增 macOS 和 Ubuntu 24.04 GNOME 预览版，沿用圆钮样式、模型选择器左侧位置、三档提示词和一键优化回填流程。首次运行需要完成对应系统的依赖安装或辅助功能授权。
+
 [English](README.md) | 简体中文
+
+## 分平台下载
+
+| 平台 | 下载 | 使用说明 |
+| --- | --- | --- |
+| Windows 10/11 | [Windows ZIP](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.1/AskBetter-Windows.zip) | 下方直接使用步骤 |
+| macOS 13+，Apple Silicon | [Mac arm64 ZIP](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.1/AskBetter-macOS-arm64.zip) | [Mac 说明](https://github.com/zxyllebron/askbetter/blob/main/macos/README.md) |
+| macOS 13+，Intel | [Mac x86_64 ZIP](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.1/AskBetter-macOS-x86_64.zip) | [Mac 说明](https://github.com/zxyllebron/askbetter/blob/main/macos/README.md) |
+| Ubuntu 24.04，GNOME 46 | [Ubuntu X11/Wayland 包](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.1/AskBetter-Ubuntu-24.04-GNOME.tar.gz) | [Ubuntu 说明](https://github.com/zxyllebron/askbetter/blob/main/linux/README.md) |
+
+Mac 和 Ubuntu 目前作为预览版发布。已完成的系统接口测试、模拟编辑器测试与尚需真实 Codex 客户端验证的项目，见[平台测试报告](https://github.com/zxyllebron/askbetter/blob/main/docs/platform-testing.md)。[Windows v1.0.0](https://github.com/zxyllebron/askbetter/releases/tag/v1.0.0) 仍可下载。
 
 ## 功能
 
@@ -21,7 +34,7 @@ Windows 上的 Codex 桌面提示词优化助手。点击输入框模型选择�
 
 Windows 10/11 64 位、.NET Framework 4.8、Codex 桌面应用，以及已安装并登录的 Codex CLI。需要网络和所选模型、Low 推理与 Fast 的使用权限。
 
-圆钮依赖 Windows UI Automation，只支持可识别的本机 Codex/ChatGPT 桌面输入框。网页、IDE、macOS 和 Linux 不支持此圆钮；纯 Agent Skill 可以单独使用。
+本节介绍 Windows 版本，依赖 Windows UI Automation，只支持可识别的本机 Codex/ChatGPT 桌面输入框。Mac 和 Ubuntu 使用上方独立版本；网页和 IDE 输入框不在桌面适配范围内。纯 Agent Skill 可以单独使用。
 
 ### 启动
 

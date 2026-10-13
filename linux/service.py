@@ -119,6 +119,10 @@ class Service(dbus.service.Object):
     @dbus.service.method(BUS, in_signature="s", out_signature="s")
     def Poll(self, context):
         self.context = self._context(context)
+        if any(item and time.monotonic()-item[4] > 8 for item in (self.pending, self.paste_pending)):
+            self.pending = self.paste_pending = None
+            self.busy = False
+            self._status("回填请求超时；结果可在单独对话框查看")
         state = {"visible": False, "busy": self.busy, "settings": self.settings.value,
                  "notice": self.notice, "caption": self._configuration()}
         if self.settings.value["uiMode"] == "standalone" or not self.context.get("pid"):

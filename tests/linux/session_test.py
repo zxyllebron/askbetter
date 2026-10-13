@@ -51,7 +51,9 @@ if kind.startswith('electron'):
     binary=str(ROOT/'artifacts/electron/node_modules/.bin/electron')
     command_line=[binary,str(ROOT/'tests/linux/electron-fixture.cjs'),'--class=Codex']
     if kind == 'electron-xwayland':
-        fixture_environment['DISPLAY']=json.loads(str(driver.State()))['xwaylandDisplay']
+        shell_environment=json.loads(str(driver.State()))
+        fixture_environment['DISPLAY']=shell_environment['xwaylandDisplay']
+        fixture_environment['XAUTHORITY']=shell_environment['xwaylandAuthority']
         command_line.append('--ozone-platform=x11')
     elif os.environ['XDG_SESSION_TYPE']=='wayland':
         command_line.append('--ozone-platform=wayland')

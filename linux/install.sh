@@ -20,6 +20,8 @@ destination="${XDG_DATA_HOME:-$HOME/.local/share}/gnome-shell/extensions/$uuid"
 mkdir -p "$destination"
 cp -R "$root/extension/." "$destination/"
 glib-compile-schemas "$destination/schemas"
+# AT-SPI is needed for Chromium to expose its readable editor accessibility tree.
+gsettings set org.gnome.desktop.interface toolkit-accessibility true
 # Register without replacing any of the user's other enabled extensions.
 /usr/bin/python3 - "$uuid" <<'PY'
 import sys
@@ -36,4 +38,5 @@ else
     echo 'Installed. Log out and back in once so GNOME can load the new extension.'
 fi
 echo 'Both X11 and Wayland GNOME sessions use this same package.'
+echo 'GNOME toolkit accessibility support is enabled for input-box integration.'
 echo 'Codex CLI must be installed and signed in; settings: ~/.config/askbetter/settings.json'
