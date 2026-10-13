@@ -7,6 +7,8 @@ from crossplatform.geometry import Rect, near_model, to_shell, anchor
 MODEL = re.compile(r"GPT.?[56]|(?:select|choose)\s+(?:(?:chatgpt|codex)\s+)?model|"
                    r"选择(?:\s*(?:chatgpt|codex))?\s*模型", re.I)
 APPLICATION = re.compile(r"^(codex|chatgpt)$", re.I)
+COMPOSER = re.compile(r"^(?:Work with (?:Codex|ChatGPT)|Ask (?:Codex|ChatGPT))$", re.I)
+REPLY = re.compile(r"^(?:Reply(?:\.{3}|…)?|Or write your own response|回复(?:\.{3}|…)?|或自行填写回复)$", re.I)
 
 
 @dataclass
@@ -16,6 +18,7 @@ class Target:
     editor: object
     model: object
     context: dict
+    has_reply: bool = False
 
     def identity(self):
         return (self.context["pid"], self.context["windowId"], self.context["title"],
@@ -175,13 +178,20 @@ class DesktopAccess:
                     editors.append((node, rect))
             except Exception:
                 continue
-        choices = [(model_rect.bottom, -abs(model_rect.y-editor_rect.bottom), editor, model)
+        choices = [(bool(COMPOSER.fullmatch(editor.name or "")), model_rect.bottom,
+                    -abs(model_rect.y-editor_rect.bottom), editor, model)
                    for editor, editor_rect in editors for model, model_rect in models
-                   if near_model(editor_rect, model_rect)]
+                   if not REPLY.fullmatch(editor.name or "") and near_model(editor_rect, model_rect)]
         if not choices:
             raise RuntimeError("Codex input box/model selector not exposed through AT-SPI")
-        _, _, editor, model = max(choices, key=lambda value: value[:2])
-        target = Target(app, frame, editor, model, dict(context))
+        _, _, _, editor, model = max(choices, key=lambda value: value[:3])
+        editor_rect = self._rectangle(editor)
+        has_reply = any(node != editor and (REPLY.fullmatch(node.name or "") or
+                        (COMPOSER.fullmatch(editor.name or "") and rect.valid() and
+                         0 <= editor_rect.y-rect.bottom <= 160 and
+                         rect.x < editor_rect.right and rect.right > editor_rect.x))
+                        for node, rect in editors)
+        target = Target(app, frame, editor, model, dict(context), has_reply)
         # Check the interface here; reading/validating rich content happens when
         # optimizing. A malformed draft must not make the button disappear.
         target.editor.queryText()
@@ -200,6 +210,11 @@ class DesktopAccess:
         model = to_shell(self._rectangle(target.model), frame, buffer)
         editor = to_shell(self._rectangle(target.editor), frame, buffer)
         if model.x >= editor.right and model.y < editor.bottom and model.bottom > editor.y:
+            if target.has_reply:
+                # A question card collapses the main composer to one row. Its
+                # upper edge touches the card: keep the wand in the composer
+                # beside its model picker, never float it into the reply card.
+                return anchor(model, size, gap)
             # Compact ChatGPT puts the picker directly beside the text field.
             # Its normal left anchor would cover text; place it above the field.
             return Rect(model.x-gap-size, editor.y-gap-size, size, size)

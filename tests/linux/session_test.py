@@ -162,6 +162,30 @@ try:
             wait(lambda:not json.loads(str(helper.Poll(json.dumps(state()['context']))))['busy'],'undo verified in '+label)
             checks.append('same-window '+label+' circle -> replacement -> undo')
 
+        # Opening a question adds a second editable control but retains the same
+        # main editor. The circle must stay in the main row, away from the card.
+        draft='主输入框草稿'
+        command('chat',text=draft,compact=True,label='Work with ChatGPT')
+        wait(lambda:access.discover(state()['context'],fresh=True).editor.name=='Work with ChatGPT','question fixture composer loaded')
+        command('question',show=True)
+        target=wait(lambda:(t if t.has_reply else None) if (t:=access.discover(state()['context'],fresh=True)) else None,'question reply exposed')
+        expected=access.position(target)
+        wait(lambda:state().get('visible') and abs(state()['y']-expected.y)<1,'circle docks beside main picker with a question open')
+        editor=access._rectangle(target.editor)
+        assert expected.y>=state()['context']['client']['y']+editor.y,'circle floated into question card'
+        driver.Action('click')
+        wait(lambda:command('get')=='优化：'+draft,'question-open main draft replacement')
+        wait(lambda:not json.loads(str(helper.Poll(json.dumps(state()['context']))))['busy'],'question-open replacement verified')
+        assert command('reply')=='Keep this reply unchanged','question reply overwritten'
+        driver.Action('undo')
+        wait(lambda:command('get')==draft,'question-open main draft undo')
+        wait(lambda:not json.loads(str(helper.Poll(json.dumps(state()['context']))))['busy'],'question-open undo verified')
+        command('question',show=False)
+        target=wait(lambda:(t if not t.has_reply else None) if (t:=access.discover(state()['context'],fresh=True)) else None,'question closed')
+        expected=access.position(target)
+        wait(lambda:state().get('visible') and abs(state()['y']-expected.y)<1,'circle returns after question closes')
+        checks.append('question opens/closes: main-row circle, main draft replacement/undo, reply untouched')
+
         draft='相同草稿，切换同一窗口的聊天'
         command('set',text=draft)
         driver.Action('click')

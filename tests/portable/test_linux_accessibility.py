@@ -126,5 +126,41 @@ class ChatLayoutTests(unittest.TestCase):
   model=ComposerNode('push button','Select ChatGPT model',Rect(600,554,140,28))
   with self.assertRaisesRegex(RuntimeError,'input box/model selector'):
    ComposerAccess([editor,model]).discover(self.context())
+ def test_question_reply_is_never_an_optimization_target(self):
+  for label in ('Reply…','Reply...','Or write your own response','回复'):
+   reply=ComposerNode('entry',label,Rect(100,520,650,40))
+   editor=ComposerNode('entry','Work with ChatGPT',Rect(100,570,450,36))
+   model=ComposerNode('push button','GPT-6.1 Sol',Rect(554,574,160,28))
+   access=ComposerAccess([reply,editor,model]);target=access.discover(self.context())
+   self.assertIs(target.editor,editor,label)
+   self.assertTrue(target.has_reply,label)
+   position=access.position(target)
+   self.assertEqual(position,Rect(520,575,26,26))
+   self.assertGreaterEqual(position.y,editor.rect.y)
+   self.assertGreaterEqual(position.y,reply.rect.bottom)
+ def test_main_composer_wins_over_a_closer_unnamed_editor(self):
+  main=ComposerNode('entry','Work with Codex',Rect(100,480,700,50))
+  other=ComposerNode('entry','',Rect(100,520,700,30))
+  model=ComposerNode('push button','GPT-6.1 Sol',Rect(600,554,160,28))
+  target=ComposerAccess([other,main,model]).discover(self.context())
+  self.assertIs(target.editor,main)
+ def test_unfamiliar_reply_label_above_main_composer(self):
+  reply=ComposerNode('entry','Write an answer',Rect(100,520,650,40))
+  editor=ComposerNode('entry','Work with ChatGPT',Rect(100,570,450,36))
+  model=ComposerNode('push button','GPT-6.1 Sol',Rect(554,574,160,28))
+  access=ComposerAccess([reply,editor,model]);target=access.discover(self.context())
+  self.assertIs(target.editor,editor)
+  self.assertTrue(target.has_reply)
+  self.assertEqual(access.position(target),Rect(520,575,26,26))
+ def test_question_appears_and_disappears_in_same_window(self):
+  editor=ComposerNode('entry','Work with ChatGPT',Rect(100,570,450,36))
+  model=ComposerNode('push button','GPT-6.1 Sol',Rect(554,574,160,28))
+  reply=ComposerNode('entry','Reply...',Rect(100,520,650,40))
+  access=ComposerAccess([editor,model]);plain=access.discover(self.context(),fresh=True)
+  access.nodes.append(reply);question=access.discover(self.context(),fresh=True)
+  self.assertEqual(plain.identity(),question.identity())
+  self.assertGreater(access.position(question).y,access.position(plain).y)
+  reply.showing=False;closed=access.discover(self.context(),fresh=True)
+  self.assertEqual(access.position(closed),access.position(plain))
 
 if __name__=='__main__': unittest.main()

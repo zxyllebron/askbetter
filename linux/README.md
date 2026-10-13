@@ -17,6 +17,8 @@ No manual CLI path or accessibility configuration is needed for the standard Cod
 
 The 26-pixel wand follows the foreground chat when switching between Codex tasks, Work chats, and ordinary ChatGPT chats in the desktop app. In expanded composers it stays to the left of the model selector. In compact ChatGPT composers it sits just above the input, leaving the text field unobstructed. Click it to optimize and replace the current draft without sending it. Right-click for Brief, Moderate, Detailed, Standalone dialog, and Change model. The bundled interface uses the same Chinese labels as Windows.
 
+When an inline Question card opens above a collapsed composer, the wand stays in the main composer's row beside its model selector instead of floating into the card. The card's Reply field is not an optimization target. Closing the card restores the normal composer position after the layout settles.
+
 The button hides while resizing or zooming, then returns after the layout settles. Pressing Ctrl alone does not hide it. Draft changes or a different window prevent replacement; the completed result can be viewed in the standalone dialog.
 
 Ctrl+Alt+Z undoes the last replacement; Ctrl+Alt+Q stops the helper until the extension is restarted. Use the GNOME Extensions app to disable/re-enable AskBetter. In the standalone dialog, Enter optimizes and Shift+Enter inserts a new line. Its Settings menu has the same five options, with Return to circular-button mode as item 4.

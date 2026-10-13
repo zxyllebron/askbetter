@@ -18,12 +18,18 @@ function html(title,draft,compact=false,editorLabel='Work with Codex') {
       body.compact #toolbar {gap:4px;align-items:center;margin-top:auto}
       body.compact #editor {height:36px;min-width:0;box-sizing:border-box;padding:4px}
       #editor p {margin:0}
+      #question {border:1px solid #555;border-radius:16px;padding:16px}
+      #question[hidden] {display:none}
+      #reply {display:block;width:95%;height:46px;margin:12px 0}
       </style></head><body class="${compact ? 'compact' : ''}"><div>AskBetter CI — browser-backed editor fixture</div>
-      ${compact ? '<div style="flex:1">Compact ChatGPT chat</div><div id="toolbar"><button>Attach</button>' : ''}
+      ${compact ? '<div style="flex:1">Compact ChatGPT chat</div>' : ''}
+      <div id="question" hidden>Question: provide more detail<textarea id="reply" aria-label="Reply...">Keep this reply unchanged</textarea><button>Skip</button><button id="reply-send">Send reply</button></div>
+      ${compact ? '<div id="toolbar"><button>Attach</button>' : ''}
       <div id="editor" class="${rich ? 'ProseMirror' : ''}" contenteditable="${rich ? 'true' : 'plaintext-only'}" role="textbox" aria-label="${editorLabel}" aria-multiline="true">${markup}</div>
       ${compact ? '' : '<div id="toolbar">'}<button id="model" ${compact ? 'aria-label="Select ChatGPT model"' : ''}>${compact ? 'Auto' : 'GPT-6 Luna'}</button><button>Microphone</button><button id="send">Send</button></div>
       <script>window.__askbetterSent=false;
       document.getElementById('send').onclick=()=>window.__askbetterSent=true;
+      document.getElementById('reply-send').onclick=()=>window.__askbetterSent=true;
       document.getElementById('editor').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){window.__askbetterSent=true;e.preventDefault();}};
       </script></body></html>`;
 }
@@ -57,6 +63,8 @@ app.whenReady().then(async()=>{
         }
         else if(request.op==='new')
             await create('AskBetter fixture 2',request.text);
+        else if(request.op==='question')
+            await window.webContents.executeJavaScript(`document.getElementById('question').hidden=${!request.show};document.getElementById('toolbar').style.marginTop=${JSON.stringify(request.show ? '0' : '')};`);
         else if(request.op==='focus')
             window.focus();
         else if(request.op==='quit') {
@@ -68,6 +76,7 @@ app.whenReady().then(async()=>{
             ? "(()=>{const e=document.getElementById('editor');if([...e.children].every(n=>n.tagName==='P')&&e.children.length)return [...e.children].map(n=>n.textContent).join('\\n');return e.innerText;})()"
             : "document.getElementById('editor').innerText");
         const reply={id:request.id,text,sent:await window.webContents.executeJavaScript('window.__askbetterSent')};
+        if(request.op==='reply') reply.text=await window.webContents.executeJavaScript("document.getElementById('reply').value");
         if(request.op==='geometry')
             reply.geometry=await window.webContents.executeJavaScript(`(()=>{const r=document.getElementById('model').getBoundingClientRect(); const border=(outerWidth-innerWidth)/2; return {x:r.x+border,y:r.y+(outerHeight-innerHeight)-border,width:r.width,height:r.height,outerWidth,outerHeight};})()`);
         console.log(JSON.stringify(reply));
