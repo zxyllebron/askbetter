@@ -210,8 +210,8 @@ export default class AskBetter extends Extension {
                 }
                 for (const item of this._menu._getMenuItems())
                     item.setSensitive(!state.busy);
-                this._busyLabel.set_visible(state.busy);
-                this._icon.set_visible(!state.busy);
+                this._busyLabel.visible = state.busy;
+                this._icon.visible = !state.busy;
                 const current = this._context();
                 if (state.visible && current.windowId === state.target && !this._moving &&
                     GLib.get_monotonic_time() >= this._hiddenUntil && !Main.overview.visible &&
