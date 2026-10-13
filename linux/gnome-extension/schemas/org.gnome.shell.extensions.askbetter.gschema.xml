@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.askbetter" path="/org/gnome/shell/extensions/askbetter/">
+    <key name="undo" type="as"><default>['&lt;Control&gt;&lt;Alt&gt;z']</default><summary>Undo the last replacement</summary></key>
+    <key name="quit" type="as"><default>['&lt;Control&gt;&lt;Alt&gt;q']</default><summary>Exit the assistant</summary></key>
+  </schema>
+</schemalist>

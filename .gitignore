@@ -8,6 +8,13 @@ auth.json
 
 # Build/test/release output
 artifacts/
+__pycache__/
+*.pyc
+build/
+dist/
+*.spec
+*.tar.gz
+*.dmg
 *.zip
 *.pdb
 *.exe

@@ -1,0 +1,9 @@
+{
+  "uuid": "askbetter@zxyllebron.github.io",
+  "name": "AskBetter",
+  "description": "One-click prompt optimization and draft replacement for Codex on Ubuntu 24.04 (GNOME, X11 and Wayland).",
+  "shell-version": ["46"],
+  "settings-schema": "org.gnome.shell.extensions.askbetter",
+  "url": "https://github.com/zxyllebron/askbetter",
+  "version": 1
+}

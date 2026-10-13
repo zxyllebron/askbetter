@@ -1,0 +1,61 @@
+name: Platform builds and checks
+on:
+  push:
+    branches: [main, 'codex/cross-platform']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  portable:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shared backend and draft guards
+        run: python3 -m unittest discover -s tests/portable -p 'test_*.py' -v
+      - name: Build Ubuntu package
+        run: python3 scripts/package_linux.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AskBetter-Ubuntu-24.04-GNOME
+          path: artifacts/linux/*.tar.gz
+  macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-15, macos-15-intel]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shared backend checks
+        run: python3 -m unittest discover -s tests/portable -p 'test_*.py' -v
+      - name: Native geometry checks
+        run: |
+          mkdir -p artifacts/tests
+          swiftc macos/Geometry.swift tests/portable/NativeGeometry.swift -o artifacts/tests/mac-geometry
+          artifacts/tests/mac-geometry
+      - name: Install build dependency
+        run: python3 -m pip install --user 'pyinstaller==6.16.0'
+      - name: Build app and bundled runtime
+        run: bash macos/build.sh
+      - name: Verify bundle and startup diagnostic
+        run: |
+          codesign --verify --deep --strict artifacts/macos/AskBetter.app
+          artifacts/macos/AskBetter.app/Contents/MacOS/AskBetter --diagnose
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AskBetter-${{ matrix.runner }}
+          path: artifacts/macos/AskBetter-macOS-*.zip
+  windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Existing Windows checks
+        shell: powershell
+        run: .\scripts\test.ps1
+      - name: Package Windows app
+        shell: powershell
+        run: .\scripts\package.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AskBetter-Windows
+          path: artifacts/releases/AskBetter-Windows.zip

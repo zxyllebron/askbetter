@@ -1,0 +1,367 @@
+#!/usr/bin/env python3
+"""User-session service for the AskBetter GNOME extension and standalone GTK dialog."""
+import argparse
+import json
+import os
+from pathlib import Path
+import signal
+import sys
+import threading
+import time
+import uuid
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+import gi
+gi.require_version("Gtk", "3.0")
+from gi.repository import Gdk, GLib, Gtk
+import dbus
+import dbus.service
+from dbus.mainloop.glib import DBusGMainLoop
+from crossplatform.core import Backend, Settings, MODEL_ID
+from crossplatform.geometry import LayoutGate
+from linux.accessibility import DesktopAccess
+
+BUS = "org.askbetter.Desktop"
+PATH = "/org/askbetter/Desktop"
+
+
+class PromptView(Gtk.TextView):
+    def __init__(self, optimize):
+        super().__init__()
+        self.optimize = optimize
+        self.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
+        self.set_left_margin(10)
+        self.set_right_margin(10)
+        self.im = Gtk.IMMulticontext()
+        self.composing = False
+        self.pressed = False
+        self.im.connect("preedit-changed", self._preedit)
+        self.im.connect("commit", lambda _, text: self.get_buffer().insert_at_cursor(text))
+        self.connect("realize", lambda _: self.im.set_client_window(self.get_window(Gtk.TextWindowType.TEXT)))
+        self.connect("focus-in-event", lambda *_: self.im.focus_in())
+        self.connect("focus-out-event", self._blur)
+        self.connect("key-press-event", self._key)
+        self.connect("key-release-event", self._release)
+
+    def _preedit(self, *_):
+        self.composing = bool(self.im.get_preedit_string()[0])
+
+    def _blur(self, *_):
+        self.im.focus_out()
+        self.composing = self.pressed = False
+        return False
+
+    def _release(self, _, event):
+        if event.keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter):
+            self.pressed = False
+        self.im.filter_keypress(event)
+        return False
+
+    def _key(self, _, event):
+        composing = self.composing
+        if self.im.filter_keypress(event):
+            return True
+        modifiers = event.state & (Gdk.ModifierType.SHIFT_MASK | Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.MOD1_MASK | Gdk.ModifierType.SUPER_MASK)
+        if event.keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter) and not modifiers and not composing:
+            if not self.pressed:
+                self.optimize()
+            self.pressed = True
+            return True
+        return False
+
+
+class Service(dbus.service.Object):
+    def __init__(self, bus, config=None, backend=None, access=None):
+        self.name = dbus.service.BusName(BUS, bus=bus, do_not_queue=True)
+        super().__init__(bus, PATH)
+        config = config or Path(os.environ.get("XDG_CONFIG_HOME", Path.home()/".config"))/"askbetter/settings.json"
+        self.settings = Settings(config)
+        prompts = ROOT/"prompts" if (ROOT/"prompts").exists() else ROOT/"askbetter"
+        self.backend = backend or Backend(prompts, Path(config).parent/"empty-workspace")
+        self.access = access or DesktopAccess()
+        self.gate = LayoutGate()
+        self.busy = False
+        self.context = {}
+        self.current = None
+        self.pending = None
+        self.undo = None
+        self.panel = None
+        self.last_input = self.last_result = ""
+        self.notice = ""
+        if self.settings.value["uiMode"] == "standalone":
+            GLib.idle_add(self._show_panel)
+
+    def _configuration(self):
+        return self.settings.value["model"] + " · " + {"brief":"简短", "moderate":"适中", "detailed":"详细"}[self.settings.value["lengthStyle"]] + " · Low · Fast"
+
+    def _context(self, text):
+        value = json.loads(text)
+        if not isinstance(value, dict):
+            raise ValueError("Invalid window context")
+        return value
+
+    def _status(self, message):
+        self.notice = message
+        if self.panel:
+            self.panel_status.set_text(message or self._configuration())
+
+    @dbus.service.method(BUS, in_signature="s", out_signature="s")
+    def Poll(self, context):
+        self.context = self._context(context)
+        state = {"visible": False, "busy": self.busy, "settings": self.settings.value,
+                 "notice": self.notice, "caption": self._configuration()}
+        if self.settings.value["uiMode"] == "standalone" or not self.context.get("pid"):
+            self.current = None
+            return json.dumps(state, ensure_ascii=False)
+        try:
+            target = self.access.discover(self.context)
+            position = self.access.position(target, self.settings.value["buttonSize"], self.settings.value["anchorGap"])
+            signature = (target.identity(), position, tuple(sorted(self.context["buffer"].items())))
+            settled = self.gate.update(signature, time.monotonic(), self.context.get("moving", False))
+            self.current = target
+            state.update({"visible": settled, "x": position.x, "y": position.y,
+                          "size": position.width, "target": self.context["windowId"]})
+        except Exception as error:
+            self.current = None
+            state["notice"] = str(error)
+        return json.dumps(state, ensure_ascii=False)
+
+    @dbus.service.method(BUS, in_signature="s", out_signature="b")
+    def Optimize(self, context):
+        if self.busy or self.settings.value["uiMode"] != "initial":
+            return False
+        context = self._context(context)
+        try:
+            target = self.access.discover(context, fresh=True)
+            draft = self.access.read(target)
+            self._optimize(draft, target)
+            return True
+        except Exception as error:
+            self._status(str(error))
+            return False
+
+    def _optimize(self, draft, target=None):
+        if self.busy:
+            return
+        self.busy = True
+        self._status("优化中 · " + self._configuration())
+        options = dict(self.settings.value)
+        def work():
+            try:
+                result = self.backend.optimize(draft, options)
+                GLib.idle_add(self._complete, draft, result, target, "")
+            except Exception as error:
+                GLib.idle_add(self._complete, draft, "", target, str(error))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _complete(self, draft, result, target, error):
+        self.busy = False
+        self.last_input, self.last_result = draft, result
+        if self.panel and result:
+            self.panel_output.get_buffer().set_text(result)
+        if error:
+            self._status(error)
+        elif target:
+            ticket = uuid.uuid4().hex
+            self.pending = (ticket, target, draft, result, time.monotonic())
+            self._status("优化完成，正在回填")
+            self.ResultReady(ticket)
+        else:
+            self._status("优化完成 · " + self._configuration())
+        return False
+
+    @dbus.service.signal(BUS, signature="s")
+    def ResultReady(self, ticket):
+        pass
+
+    @dbus.service.method(BUS, in_signature="ss", out_signature="b")
+    def Commit(self, ticket, context):
+        pending, self.pending = self.pending, None
+        if not pending or pending[0] != ticket or time.monotonic()-pending[4] > 5:
+            return False
+        _, target, draft, result, _ = pending
+        try:
+            self.access.replace(target, draft, result, self._context(context))
+            self.undo = (target, result, draft)
+            self._status("优化完成；Ctrl+Alt+Z 撤销")
+            return True
+        except Exception as error:
+            self._status(str(error) + "；结果可在单独对话框查看")
+            return False
+
+    @dbus.service.method(BUS, in_signature="s", out_signature="b")
+    def Undo(self, context):
+        if self.busy or not self.undo:
+            return False
+        try:
+            target, result, draft = self.undo
+            self.access.replace(target, result, draft, self._context(context))
+            self.undo = None
+            self._status("已恢复原稿")
+            return True
+        except Exception as error:
+            self._status(str(error))
+            return False
+
+    @dbus.service.method(BUS, in_signature="s", out_signature="")
+    def SetStyle(self, style):
+        if not self.busy:
+            self.settings.update(lengthStyle=str(style))
+            self._status(self._configuration())
+
+    @dbus.service.method(BUS, in_signature="", out_signature="")
+    def ShowStandalone(self):
+        if not self.busy:
+            self.settings.update(uiMode="standalone")
+            self._show_panel()
+
+    def _show_panel(self):
+        if self.panel is None:
+            self.panel = Gtk.Window(title="AskBetter · 单独对话框")
+            self.panel.set_default_size(600, 480)
+            self.panel.set_size_request(430, 340)
+            self.panel.connect("delete-event", self._close_panel)
+            grid = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10, margin=18)
+            self.panel.add(grid)
+            self.panel_status = Gtk.Label(label=self._configuration(), xalign=0)
+            self.panel_status.set_line_wrap(True)
+            grid.pack_start(self.panel_status, False, False, 0)
+            self.panel_input = PromptView(self._run_panel)
+            self.panel_output = Gtk.TextView(editable=False, wrap_mode=Gtk.WrapMode.WORD_CHAR)
+            self.panel_output.set_left_margin(10)
+            self.panel_output.set_right_margin(10)
+            for index, view in enumerate((self.panel_input, self.panel_output)):
+                scroll = Gtk.ScrolledWindow()
+                scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+                scroll.add(view)
+                grid.pack_start(scroll, True, True, 0)
+                if index == 0:
+                    row = Gtk.Box(spacing=10)
+                    optimize = Gtk.Button(label="优化")
+                    optimize.connect("clicked", lambda *_: self._run_panel())
+                    options = Gtk.Button(label="设置")
+                    options.connect("clicked", lambda *_: self._menu().popup_at_widget(options, Gdk.Gravity.SOUTH_WEST, Gdk.Gravity.NORTH_WEST, None))
+                    row.pack_start(optimize, False, False, 0)
+                    row.pack_start(options, False, False, 0)
+                    grid.pack_start(row, False, False, 0)
+                view.connect("button-press-event", self._panel_right_click)
+            self.panel_input.get_buffer().set_text(self.last_input)
+            self.panel_output.get_buffer().set_text(self.last_result)
+        self.panel.show_all()
+        self.panel.present()
+        return False
+
+    def _menu(self):
+        menu = Gtk.Menu()
+        for style, title in (("brief", "简短"), ("moderate", "适中"), ("detailed", "详细")):
+            item = Gtk.CheckMenuItem(label=title)
+            item.set_active(self.settings.value["lengthStyle"] == style)
+            item.connect("activate", lambda _, value=style: self.SetStyle(value))
+            item.set_sensitive(not self.busy)
+            menu.append(item)
+        for title, action in (("初始模式", self.ReturnInitial), ("更改模型", self.ShowModel)):
+            item = Gtk.MenuItem(label=title)
+            item.connect("activate", lambda _, callback=action: callback())
+            item.set_sensitive(not self.busy)
+            menu.append(item)
+        menu.show_all()
+        return menu
+
+    def _panel_right_click(self, _, event):
+        if event.button == 3:
+            self._menu().popup_at_pointer(event)
+            return True
+        return False
+
+    def _run_panel(self):
+        if self.busy:
+            return
+        buffer = self.panel_input.get_buffer()
+        self._optimize(buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter(), True))
+
+    def _close_panel(self, *_):
+        self.ReturnInitial()
+        return True
+
+    @dbus.service.method(BUS, in_signature="", out_signature="")
+    def ReturnInitial(self):
+        if not self.busy:
+            self.settings.update(uiMode="initial")
+            if self.panel:
+                self.panel.hide()
+            self.gate = LayoutGate()
+
+    @dbus.service.method(BUS, in_signature="", out_signature="")
+    def ShowModel(self):
+        if self.busy:
+            return
+        dialog = Gtk.Dialog(title="更改优化模型", transient_for=self.panel, modal=True)
+        dialog.add_buttons("取消", Gtk.ResponseType.CANCEL, "保存", Gtk.ResponseType.OK)
+        dialog.set_default_size(460, 180)
+        box = dialog.get_content_area()
+        box.set_border_width(18)
+        box.set_spacing(10)
+        box.pack_start(Gtk.Label(label="模型（保持 Low / Fast）", xalign=0), False, False, 0)
+        combo = Gtk.ComboBoxText.new_with_entry()
+        entry = combo.get_child()
+        entry.set_text(self.settings.value["model"])
+        box.pack_start(combo, False, False, 0)
+        status = Gtk.Label(label="正在获取模型列表，也可以手动输入", xalign=0)
+        box.pack_start(status, False, False, 0)
+        alive = [True]
+        def loaded(models, error):
+            if alive[0]:
+                current = entry.get_text()
+                for value in models:
+                    combo.append_text(value)
+                entry.set_text(current)
+                status.set_text(error or "选择或输入模型标识")
+            return False
+        def load():
+            try:
+                GLib.idle_add(loaded, self.backend.models(dict(self.settings.value)), "")
+            except Exception:
+                GLib.idle_add(loaded, [], "模型列表暂不可用，可手动输入")
+        threading.Thread(target=load, daemon=True).start()
+        dialog.show_all()
+        while dialog.run() == Gtk.ResponseType.OK:
+            try:
+                self.settings.update(model=entry.get_text().strip())
+                self._status(self._configuration())
+                break
+            except ValueError as error:
+                status.set_text(str(error))
+        alive[0] = False
+        dialog.destroy()
+
+    @dbus.service.method(BUS, in_signature="", out_signature="")
+    def Quit(self):
+        self.backend.close()
+        Gtk.main_quit()
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--standalone", action="store_true")
+    args = parser.parse_args()
+    DBusGMainLoop(set_as_default=True)
+    bus = dbus.SessionBus()
+    if bus.name_has_owner(BUS):
+        if args.standalone:
+            dbus.Interface(bus.get_object(BUS, PATH), BUS).ShowStandalone()
+        return
+    Gtk.Settings.get_default().set_property("gtk-application-prefer-dark-theme", True)
+    service = Service(bus)
+    if args.standalone:
+        service.ShowStandalone()
+    signal.signal(signal.SIGTERM, lambda *_: GLib.idle_add(service.Quit))
+    signal.signal(signal.SIGINT, lambda *_: GLib.idle_add(service.Quit))
+    try:
+        Gtk.main()
+    finally:
+        service.backend.close()
+
+
+if __name__ == "__main__":
+    main()
