@@ -27,6 +27,30 @@ BUS = "org.askbetter.Desktop"
 PATH = "/org/askbetter/Desktop"
 
 
+def wake_chromium_accessibility(bus, schedule=GLib.timeout_add):
+    """Request Chromium's renderer tree, then restore the user's a11y flag."""
+    status = dbus.Interface(bus.get_object("org.a11y.Bus", "/org/a11y/bus"),
+                            "org.freedesktop.DBus.Properties")
+    if status.Get("org.a11y.Status", "ScreenReaderEnabled"):
+        return None
+    status.Set("org.a11y.Status", "ScreenReaderEnabled", dbus.Boolean(True))
+    restored = False
+
+    def restore():
+        nonlocal restored
+        if not restored:
+            status.Set("org.a11y.Status", "ScreenReaderEnabled", dbus.Boolean(False))
+            restored = True
+        return False
+
+    try:
+        schedule(1500, restore)
+    except Exception:
+        restore()
+        raise
+    return restore
+
+
 class PromptView(Gtk.TextView):
     def __init__(self, optimize):
         super().__init__()
@@ -84,6 +108,9 @@ class Service(dbus.service.Object):
     def __init__(self, bus, config=None, backend=None, access=None):
         self.name = dbus.service.BusName(BUS, bus=bus, do_not_queue=True)
         super().__init__(bus, PATH)
+        self.session_bus = bus
+        self.accessibility_attempted = set()
+        self.accessibility_restore = None
         config = config or Path(os.environ.get("XDG_CONFIG_HOME", Path.home()/".config"))/"askbetter/settings.json"
         self.settings = Settings(config)
         prompts = ROOT/"prompts" if (ROOT/"prompts").exists() else ROOT/"askbetter"
@@ -95,6 +122,7 @@ class Service(dbus.service.Object):
         self.current = None
         self.pending = None
         self.paste_pending = None
+        self.paste_is_undo = False
         self.undo = None
         self.panel = None
         self.last_input = self.last_result = ""
@@ -139,7 +167,23 @@ class Service(dbus.service.Object):
         except Exception as error:
             self.current = None
             state["notice"] = str(error)
+            pid = self.context.get("pid")
+            if (str(error) in ("Codex input box/model selector not exposed through AT-SPI",
+                              "The foreground Codex application is not exposed through AT-SPI")
+                    and pid not in self.accessibility_attempted):
+                self.accessibility_attempted.add(pid)
+                try:
+                    restore = wake_chromium_accessibility(self.session_bus)
+                    if restore is not None:
+                        self.accessibility_restore = restore
+                except Exception:
+                    pass
         return json.dumps(state, ensure_ascii=False)
+
+    @dbus.service.method(BUS, in_signature="", out_signature="s")
+    def Diagnostics(self):
+        return json.dumps({"context": self.context, "notice": self.notice,
+                           "hasTarget": self.current is not None}, ensure_ascii=False)
 
     @dbus.service.method(BUS, in_signature="s", out_signature="b")
     def Optimize(self, context):
@@ -206,6 +250,7 @@ class Service(dbus.service.Object):
             return True
         except PasteRequired:
             self.paste_pending = pending
+            self.paste_is_undo = False
             self.PasteReady(ticket)
             return True
         except Exception as error:
@@ -243,8 +288,9 @@ class Service(dbus.service.Object):
             return False
         _, target, draft, result, _ = pending
         if self.access.unchanged(target, result, self._context(context)):
-            self.undo = (target, result, draft)
-            self._status("优化完成；Ctrl+Alt+Z 撤销")
+            self.undo = None if self.paste_is_undo else (target, result, draft)
+            self._status("已恢复原稿" if self.paste_is_undo else "优化完成；Ctrl+Alt+Z 撤销")
+            self.paste_is_undo = False
             return True
         self._status("未能验证回填；结果可在单独对话框查看")
         return False
@@ -263,6 +309,7 @@ class Service(dbus.service.Object):
             self.busy = True
             ticket = uuid.uuid4().hex
             self.paste_pending = (ticket, target, result, draft, time.monotonic())
+            self.paste_is_undo = True
             self.PasteReady(ticket)
             return True
         except Exception as error:
@@ -280,6 +327,12 @@ class Service(dbus.service.Object):
         if not self.busy:
             self.settings.update(uiMode="standalone")
             self._show_panel()
+
+    @dbus.service.method(BUS, in_signature="", out_signature="")
+    def ShowFirstRun(self):
+        if not self.busy:
+            self._show_panel()
+            self._status("安装完成；重新登录桌面后圆形按钮生效，当前可在此优化草稿")
 
     def _show_panel(self):
         if self.panel is None:
@@ -402,6 +455,11 @@ class Service(dbus.service.Object):
 
     @dbus.service.method(BUS, in_signature="", out_signature="")
     def Quit(self):
+        if self.accessibility_restore:
+            try:
+                self.accessibility_restore()
+            except dbus.DBusException:
+                pass  # The accessibility bus may already be stopping at logout.
         self.backend.close()
         Gtk.main_quit()
 
@@ -409,17 +467,21 @@ class Service(dbus.service.Object):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--standalone", action="store_true")
+    parser.add_argument("--first-run", action="store_true")
     args = parser.parse_args()
     DBusGMainLoop(set_as_default=True)
     bus = dbus.SessionBus()
     if bus.name_has_owner(BUS):
-        if args.standalone:
-            dbus.Interface(bus.get_object(BUS, PATH), BUS).ShowStandalone()
+        if args.standalone or args.first_run:
+            remote = dbus.Interface(bus.get_object(BUS, PATH), BUS)
+            remote.ShowFirstRun() if args.first_run else remote.ShowStandalone()
         return
     Gtk.Settings.get_default().set_property("gtk-application-prefer-dark-theme", True)
     service = Service(bus)
     if args.standalone:
         service.ShowStandalone()
+    elif args.first_run:
+        service.ShowFirstRun()
     signal.signal(signal.SIGTERM, lambda *_: GLib.idle_add(service.Quit))
     signal.signal(signal.SIGINT, lambda *_: GLib.idle_add(service.Quit))
     try:

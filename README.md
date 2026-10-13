@@ -15,9 +15,11 @@ Each platform has its own download path. The Ubuntu package targets GNOME 46 in 
 | Windows 10/11 | [Windows ZIP](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.1/AskBetter-Windows.zip) | [Quick start below](#windows-quick-start) |
 | macOS 13+, Apple Silicon | [macOS arm64 ZIP](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.1/AskBetter-macOS-arm64.zip) | [macOS guide](https://github.com/zxyllebron/askbetter/blob/main/macos/README.md) |
 | macOS 13+, Intel | [macOS x86_64 ZIP](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.1/AskBetter-macOS-x86_64.zip) | [macOS guide](https://github.com/zxyllebron/askbetter/blob/main/macos/README.md) |
-| Ubuntu 24.04, GNOME 46 | [Ubuntu X11/Wayland package](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.1/AskBetter-Ubuntu-24.04-GNOME.tar.gz) | [Ubuntu guide](https://github.com/zxyllebron/askbetter/blob/main/linux/README.md) |
+| Ubuntu 24.04, GNOME 46 | [Ubuntu X11/Wayland package](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.2/AskBetter-Ubuntu-24.04-GNOME.tar.gz) | [Ubuntu guide](https://github.com/zxyllebron/askbetter/blob/main/linux/README.md) |
 
 The new ports are preview builds. Review the [platform test report](https://github.com/zxyllebron/askbetter/blob/main/docs/platform-testing.md) for the distinction between real OS integration tests, editor fixtures, and signed-in Codex-client validation. The existing [Windows v1.0.0 release](https://github.com/zxyllebron/askbetter/releases/tag/v1.0.0) remains available.
+
+On Ubuntu, extract the package and run `./install.sh` once. It installs missing dependencies, detects the bundled desktop CLI, enables accessibility, and adds an application-menu entry. Ubuntu may request administrator authentication for system dependencies. GNOME requires one logout/login to load a new local extension; a standalone editor opens immediately in the meantime. The repository ZIP supports `./linux/install.sh` as well.
 
 ## Features
 

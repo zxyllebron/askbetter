@@ -33,6 +33,10 @@ def build(output):
             shutil.copy2(ROOT/source,package/target)
         for path in (package/"install.sh",package/"run.sh"):
             path.chmod(0o755)
+        (package/"Start AskBetter.sh").write_text(
+            '#!/bin/sh\nset -eu\nroot=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)\n'
+            'exec "$root/install.sh" "$@"\n', encoding="utf-8")
+        (package/"Start AskBetter.sh").chmod(0o755)
         for path in package.rglob("*"):
             if path.is_dir():
                 path.chmod(0o755)

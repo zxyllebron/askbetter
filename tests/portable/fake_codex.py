@@ -35,6 +35,8 @@ def finish():
         text = '{"prompt":""}'
     if arguments.scenario == "invalid":
         text = "unexpected text"
+    if arguments.scenario == "object":
+        text = json.dumps({"prompt": "\ufffc"})
     # A stale result must never be selected for the current draft.
     send({"method":"item/completed","params":{"threadId":"old-thread","item":{"type":"agentMessage","text":"stale"}}})
     send({"method":"item/completed","params":{"threadId":thread_id,"turnId":"old-turn","item":{"type":"agentMessage","text":"stale-turn"}}})
