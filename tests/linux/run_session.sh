@@ -3,7 +3,10 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 repo="$PWD"
 session="${1:?x11 or wayland required}"
-export XDG_RUNTIME_DIR="$(mktemp -d)"
+if [[ -z "${ASKBETTER_TEST_RUNTIME:-}" ]]; then
+    export ASKBETTER_TEST_RUNTIME="$(mktemp -d)"
+fi
+export XDG_RUNTIME_DIR="$ASKBETTER_TEST_RUNTIME"
 chmod 700 "$XDG_RUNTIME_DIR"
 export XDG_CONFIG_HOME="$XDG_RUNTIME_DIR/config"
 export XDG_DATA_HOME="$XDG_RUNTIME_DIR/data"
@@ -11,6 +14,12 @@ export XDG_SESSION_TYPE="$session"
 export NO_AT_BRIDGE=0
 export GTK_MODULES=gail:atk-bridge
 export PYTHONPATH="$repo"
+if [[ "${ASKBETTER_SESSION_BUS:-}" != '1' ]]; then
+    export ASKBETTER_SESSION_BUS=1
+    # DConf and other D-Bus-activated services must inherit these same XDG paths
+    # and DISPLAY. Starting the bus earlier makes settings appear to reset.
+    exec dbus-run-session -- bash "$repo/tests/linux/run_session.sh" "$session"
+fi
 mkdir -p "$XDG_CONFIG_HOME/askbetter" "$XDG_DATA_HOME/gnome-shell/extensions"
 python3 scripts/package_linux.py
 tar -xzf artifacts/linux/AskBetter-Ubuntu-24.04-GNOME.tar.gz -C "$XDG_RUNTIME_DIR"

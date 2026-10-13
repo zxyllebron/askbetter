@@ -48,6 +48,7 @@ jobs:
           artifacts/macos/AskBetter.app/Contents/MacOS/AskBetter --diagnose | tee artifacts/tests/macos-diagnostic.json
           python3 tests/portable/bundled_helper.py artifacts/macos/AskBetter.app
           artifacts/macos/AskBetter.app/Contents/MacOS/AskBetter --ui-smoke artifacts/tests
+          python3 tests/macos/desktop_check.py artifacts/macos/AskBetter.app
       - uses: actions/upload-artifact@v4
         with:
           name: AskBetter-${{ matrix.runner }}
@@ -70,7 +71,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gnome-shell gnome-shell-extension-prefs gjs xvfb xauth dbus-x11 python3-gi python3-pyatspi python3-dbus gir1.2-gtk-3.0 libglib2.0-bin
       - name: GNOME circular button and real AT-SPI editor checks
-        run: dbus-run-session -- xvfb-run -a -s '-screen 0 1280x900x24' bash tests/linux/run_session.sh '${{ matrix.session }}'
+        run: xvfb-run -a -s '-screen 0 1280x900x24' bash tests/linux/run_session.sh '${{ matrix.session }}'
       - uses: actions/upload-artifact@v4
         if: always()
         with:

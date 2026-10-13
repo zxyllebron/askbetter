@@ -389,7 +389,57 @@ final class Controller: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 }
 
-if let smoke=CommandLine.arguments.firstIndex(of:"--ui-smoke"), CommandLine.arguments.count>smoke+1 {
+if let probe=CommandLine.arguments.firstIndex(of:"--desktop-probe"), CommandLine.arguments.count>probe+2 {
+    let app=NSApplication.shared
+    app.setActivationPolicy(.accessory)
+    let pid=pid_t(CommandLine.arguments[probe+1])!
+    let folder=URL(fileURLWithPath:CommandLine.arguments[probe+2],isDirectory:true)
+    guard let fixture=NSRunningApplication(processIdentifier:pid),
+          fixture.bundleIdentifier == "io.github.zxyllebron.askbetter.fixture",AXIsProcessTrusted() else {
+        print("Fixture-only probe requires Accessibility permission"); exit(1)
+    }
+    fixture.activate(options:[])
+    let access=DesktopAccess()
+    var attempts=0
+    var timer:Timer?
+    timer=Timer(timeInterval:0.1,repeats:true) { _ in
+        attempts += 1
+        guard attempts<100 else { print("Native fixture focus timeout"); exit(1) }
+        guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else { return }
+        do {
+            let target=try access.discover(pid:pid,fresh:true)
+            let draft=try target.read()
+            guard draft == "原稿：IMU、UDP 与机械臂。" else { throw ABError.message("Fixture draft mismatch") }
+            timer?.invalidate()
+            access.replace(target,expected:draft,result:"优化：IMU、UDP 与机械臂。") { error in
+                if let error=error { print(error.localizedDescription); exit(1) }
+                let replacement=(try? target.read()) == "优化：IMU、UDP 与机械臂。"
+                access.replace(target,expected:draft,result:"must not replace changed text") { staleError in
+                    let changed=staleError != nil && (try? target.read()) == "优化：IMU、UDP 与机械臂。"
+                    let command:[String:Any]=["id":1,"title":"Changed fixture title"]
+                    try! JSONSerialization.data(withJSONObject:command).write(to:folder.appendingPathComponent("command.json"),options:.atomic)
+                    var checks=0
+                    var wait:Timer?
+                    wait=Timer(timeInterval:0.05,repeats:true) { _ in
+                        checks += 1
+                        guard checks<100 else { exit(1) }
+                        guard textAttribute(target.window,kAXTitleAttribute as CFString) == "Changed fixture title" else { return }
+                        wait?.invalidate()
+                        access.replace(target,expected:"优化：IMU、UDP 与机械臂。",result:"must not replace a different context") { titleError in
+                            let report:[String:Any]=["read":true,"replacement":replacement,"changedDraftRejected":changed,
+                                "titleChangeRejected":titleError != nil,"buttonSize":26,"anchorGap":8]
+                            try! JSONSerialization.data(withJSONObject:report,options:[.sortedKeys,.prettyPrinted]).write(to:folder.appendingPathComponent("probe.json"))
+                            app.stop(nil)
+                        }
+                    }
+                    RunLoop.main.add(wait!,forMode:.common)
+                }
+            }
+        } catch { print(error.localizedDescription); exit(1) }
+    }
+    RunLoop.main.add(timer!,forMode:.common)
+    app.run()
+} else if let smoke=CommandLine.arguments.firstIndex(of:"--ui-smoke"), CommandLine.arguments.count>smoke+1 {
     let app=NSApplication.shared
     app.setActivationPolicy(.accessory)
     let controller=Controller()
