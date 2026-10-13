@@ -64,18 +64,27 @@ jobs:
       fail-fast: false
       matrix:
         session: [x11, wayland]
+        fixture: [gtk, electron]
     steps:
       - uses: actions/checkout@v4
       - name: Install Ubuntu desktop test dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y gnome-shell gnome-shell-extension-prefs gjs xvfb xauth dbus-x11 python3-gi python3-pyatspi python3-dbus gir1.2-gtk-3.0 libglib2.0-bin
+      - name: Install browser-backed fixture dependency
+        if: matrix.fixture == 'electron'
+        run: |
+          npm install --prefix artifacts/electron --no-save electron@44.7.0
+          sudo chown root:root artifacts/electron/node_modules/electron/dist/chrome-sandbox
+          sudo chmod 4755 artifacts/electron/node_modules/electron/dist/chrome-sandbox
       - name: GNOME circular button and real AT-SPI editor checks
+        env:
+          ASKBETTER_FIXTURE: ${{ matrix.fixture }}
         run: xvfb-run -a -s '-screen 0 1280x900x24' bash tests/linux/run_session.sh '${{ matrix.session }}'
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: Linux-desktop-${{ matrix.session }}-reports
+          name: Linux-desktop-${{ matrix.session }}-${{ matrix.fixture }}-reports
           path: artifacts/tests/
   windows:
     if: ${{ github.ref != 'refs/heads/codex/cross-platform' || !contains(github.event.head_commit.message, '[linux-only]') }}

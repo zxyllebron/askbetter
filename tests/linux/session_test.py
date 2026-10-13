@@ -44,7 +44,14 @@ except Exception:
     print('Driver state:',driver.State(),flush=True)
     raise
 helper=dbus.Interface(bus.get_object('org.askbetter.Desktop','/org/askbetter/Desktop'),'org.askbetter.Desktop')
-fixture=subprocess.Popen(['/usr/bin/python3',str(ROOT/'tests/linux/fixture.py')],stdin=subprocess.PIPE,
+kind=os.environ.get('ASKBETTER_FIXTURE','gtk')
+command_line=['/usr/bin/python3',str(ROOT/'tests/linux/fixture.py')]
+if kind == 'electron':
+    binary=str(ROOT/'artifacts/electron/node_modules/.bin/electron')
+    command_line=[binary,str(ROOT/'tests/linux/electron-fixture.cjs'),'--class=Codex']
+    if os.environ['XDG_SESSION_TYPE']=='wayland':
+        command_line.append('--ozone-platform=wayland')
+fixture=subprocess.Popen(command_line,stdin=subprocess.PIPE,
     stdout=subprocess.PIPE,text=True,encoding='utf-8',env={**os.environ,'PYTHONIOENCODING':'utf-8'})
 replies=queue.Queue()
 def reader():
@@ -129,7 +136,7 @@ try:
     output=ROOT/'artifacts/tests'
     output.mkdir(parents=True,exist_ok=True)
     report={'session':os.environ.get('XDG_SESSION_TYPE'),'toolkit':os.environ.get('GDK_BACKEND'),
-            'checks':checks,'realCodex':False,'fixture':'GTK editor + fake app-server'}
+            'checks':checks,'realCodex':False,'fixture':kind+' editor + fake app-server'}
     (output/('linux-'+os.environ['XDG_SESSION_TYPE']+'.json')).write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
     print(json.dumps(report,ensure_ascii=False,indent=2))
 finally:
