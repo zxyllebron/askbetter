@@ -60,6 +60,8 @@ export default class Driver extends Extension {
             throw new Error('Test driver only operates on its own fixture');
         if (action === 'click')
             extension._button.emit('clicked',1);
+        else if (action === 'clipboard-text')
+            St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD,'原剪贴板：IMU / UDP');
         else if (action === 'ctrl-down' || action === 'ctrl-up') {
             this._keyboard ??= Clutter.get_default_backend().get_default_seat()
                 .create_virtual_device(Clutter.InputDeviceType.KEYBOARD_DEVICE);

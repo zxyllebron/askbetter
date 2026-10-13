@@ -140,6 +140,17 @@ try:
     if kind.startswith('electron') and not initial_clipboard_formats:
         wait(lambda:str(driver.ClipboardText())=='','empty clipboard restored safely')
         checks.append('empty clipboard restored without a zero-byte GNOME memory source')
+    if kind.startswith('electron'):
+        driver.Action('clipboard-text')
+        command('set',text='剪贴板保留测试')
+        driver.Action('click')
+        wait(lambda:command('get')=='优化：剪贴板保留测试','replacement with a populated clipboard')
+        wait(lambda:not json.loads(str(helper.Poll(json.dumps(state()['context']))))['busy'],'populated clipboard replacement verified')
+        wait(lambda:str(driver.ClipboardText())=='原剪贴板：IMU / UDP','original Unicode clipboard restored')
+        driver.Action('undo')
+        wait(lambda:command('get')=='剪贴板保留测试','populated clipboard undo')
+        wait(lambda:not json.loads(str(helper.Poll(json.dumps(state()['context']))))['busy'],'populated clipboard undo verified')
+        checks.append('original Unicode clipboard survives replacement and undo')
 
     command('set',text='优化前的草稿')
     driver.Action('click')
