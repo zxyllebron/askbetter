@@ -34,7 +34,7 @@ export default class AskBetter extends Extension {
         this._busyLabel.hide();
         this._button.set_child(this._content);
         this._button.set_size(26, 26);
-        Main.layoutManager.addChrome(this._button, {affectsInputRegion: true, trackFullscreen: true});
+        Main.layoutManager.addChrome(this._button, {affectsInputRegion: true, trackFullscreen: false});
         this._button.hide();
         this._button.connect('clicked', () => this._call('Optimize', '(s)', [JSON.stringify(this._context())]));
         this._button.connect('button-press-event', (_, event) => {

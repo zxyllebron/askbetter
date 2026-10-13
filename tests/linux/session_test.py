@@ -77,8 +77,9 @@ def state():
 checks=[]
 try:
     driver.Action('desktop')
-    wait(lambda:state().get('visible'),'circle appears on the fixture')
-    current=state()
+    wait(lambda:driver.Action('focus1') or state().get('focusedTitle')=='AskBetter fixture 1','fixture receives foreground focus')
+    current=wait(lambda:(value if value.get('visible') and value.get('context',{}).get('pid')==fixture.pid else None)
+                 if (value:=state()) else None,'circle appears on the focused fixture')
     assert current['size'] == 26, current
     assert current['menu'] == ['简短','适中','详细','单独对话框模式','更改模型'], current
     checks.append('circle size and five menu options')
@@ -110,6 +111,7 @@ try:
     command('set',text='相同草稿，不同窗口')
     driver.Action('click')
     command('new',text='相同草稿，不同窗口')
+    wait(lambda:driver.Action('focus2') or state().get('focusedTitle')=='AskBetter fixture 2','second fixture receives focus')
     wait(lambda:state().get('focusedTitle')=='AskBetter fixture 2','new foreground window')
     wait(lambda:'preserved' in (state().get('caption') or '') or '未覆盖' in (state().get('caption') or ''),'different window rejected')
     assert command('get',window=0)=='相同草稿，不同窗口'

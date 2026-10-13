@@ -34,6 +34,15 @@ export default class Driver extends Extension {
             Main.overview.hide();
             return;
         }
+        if (action === 'focus1' || action === 'focus2') {
+            Main.overview.hide();
+            const target=global.display.get_tab_list(Meta.TabList.NORMAL_ALL,null)
+                .find(candidate=>candidate.get_title() === `AskBetter fixture ${action.slice(-1)}`);
+            if (!target)
+                throw new Error('Fixture window is not available');
+            target.activate(global.get_current_time());
+            return;
+        }
         const window=global.display.focus_window;
         if (!window?.get_title()?.startsWith('AskBetter fixture'))
             throw new Error('Test driver only operates on its own fixture');
