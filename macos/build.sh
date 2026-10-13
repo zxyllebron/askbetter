@@ -24,4 +24,11 @@ codesign --force --deep --sign - "$app"
 cp macos/README.md "$output/README-macOS.md"
 cp LICENSE "$output/LICENSE"
 ditto -c -k --keepParent "$app" "$output/AskBetter-macOS-$arch.zip"
+python3 - "$output/AskBetter-macOS-$arch.zip" "$repo" <<'PY'
+import sys,zipfile
+from pathlib import Path
+with zipfile.ZipFile(sys.argv[1],'a',compression=zipfile.ZIP_DEFLATED) as archive:
+    archive.write(Path(sys.argv[2])/'macos/README.md','README-macOS.md')
+    archive.write(Path(sys.argv[2])/'LICENSE','LICENSE')
+PY
 echo "macOS package: $output/AskBetter-macOS-$arch.zip"

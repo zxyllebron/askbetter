@@ -43,11 +43,18 @@ jobs:
       - name: Verify bundle and startup diagnostic
         run: |
           codesign --verify --deep --strict artifacts/macos/AskBetter.app
-          artifacts/macos/AskBetter.app/Contents/MacOS/AskBetter --diagnose
+          artifacts/macos/AskBetter.app/Contents/MacOS/AskBetter --diagnose | tee artifacts/tests/macos-diagnostic.json
+          python3 tests/portable/bundled_helper.py artifacts/macos/AskBetter.app
+          artifacts/macos/AskBetter.app/Contents/MacOS/AskBetter --ui-smoke artifacts/tests
       - uses: actions/upload-artifact@v4
         with:
           name: AskBetter-${{ matrix.runner }}
           path: artifacts/macos/AskBetter-macOS-*.zip
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: macOS-${{ matrix.runner }}-reports
+          path: artifacts/tests/
   linux-desktop:
     runs-on: ubuntu-24.04
     strategy:

@@ -37,12 +37,17 @@ class PromptView(Gtk.TextView):
         self.composing = False
         self.pressed = False
         self.im.connect("preedit-changed", self._preedit)
-        self.im.connect("commit", lambda _, text: self.get_buffer().insert_at_cursor(text))
+        self.im.connect("commit", self._commit)
         self.connect("realize", lambda _: self.im.set_client_window(self.get_window(Gtk.TextWindowType.TEXT)))
         self.connect("focus-in-event", lambda *_: self.im.focus_in())
         self.connect("focus-out-event", self._blur)
         self.connect("key-press-event", self._key)
         self.connect("key-release-event", self._release)
+
+    def _commit(self, _, text):
+        buffer = self.get_buffer()
+        buffer.delete_selection(True, True)
+        buffer.insert_at_cursor(text)
 
     def _preedit(self, *_):
         self.composing = bool(self.im.get_preedit_string()[0])
@@ -60,13 +65,16 @@ class PromptView(Gtk.TextView):
 
     def _key(self, _, event):
         composing = self.composing
+        enter = event.keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter)
+        was_pressed = self.pressed
+        if enter:
+            self.pressed = True
         if self.im.filter_keypress(event):
             return True
         modifiers = event.state & (Gdk.ModifierType.SHIFT_MASK | Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.MOD1_MASK | Gdk.ModifierType.SUPER_MASK)
-        if event.keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter) and not modifiers and not composing:
-            if not self.pressed:
+        if enter and not modifiers and not composing:
+            if not was_pressed:
                 self.optimize()
-            self.pressed = True
             return True
         return False
 

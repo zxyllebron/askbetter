@@ -28,8 +28,9 @@ def wait(predicate, description, seconds=30):
 
 
 wait(lambda:bus.name_has_owner('org.gnome.Shell'),'GNOME Shell session started')
-extensions=dbus.Interface(bus.get_object('org.gnome.Shell','/org/gnome/Shell/Extensions'),'org.gnome.Shell.Extensions')
-print('Desktop extension inventory:',extensions.ListExtensions(),flush=True)
+extensions=dbus.Interface(bus.get_object('org.gnome.Shell','/org/gnome/Shell'),'org.gnome.Shell.Extensions')
+inventory=wait(lambda:extensions.ListExtensions(),'desktop extensions registered')
+print('Desktop extension inventory:',inventory,flush=True)
 for extension_uuid in ('askbetter@zxyllebron.github.io','askbetter-tests@local'):
     print('Enable',extension_uuid,extensions.EnableExtension(extension_uuid),flush=True)
 wait(lambda:bus.name_has_owner('org.askbetter.Tests'),'GNOME test extension enabled')

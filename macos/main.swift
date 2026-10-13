@@ -54,6 +54,8 @@ final class WandView: NSView {
 
 final class PromptTextView: NSTextView {
     var optimize: (() -> Void)?
+    var options: (() -> NSMenu)?
+    override func menu(for event: NSEvent) -> NSMenu? { options?() ?? super.menu(for:event) }
     override func keyDown(with event: NSEvent) {
         if (event.keyCode == 36 || event.keyCode == 76), !hasMarkedText(),
            event.modifierFlags.intersection([.shift,.command,.control,.option]).isEmpty {
@@ -62,6 +64,11 @@ final class PromptTextView: NSTextView {
         }
         super.keyDown(with: event)
     }
+}
+
+final class ResultTextView: NSTextView {
+    var options: (() -> NSMenu)?
+    override func menu(for event: NSEvent) -> NSMenu? { options?() ?? super.menu(for:event) }
 }
 
 final class Controller: NSObject, NSApplicationDelegate, NSWindowDelegate {
@@ -95,6 +102,7 @@ final class Controller: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var keyMonitor: Any?
     var observer: AXObserver?
     var observedPID: pid_t = 0
+    var observedWindow: AXUIElement?
     var workspaceObserver: NSObjectProtocol?
 
     override init() {
@@ -174,9 +182,8 @@ final class Controller: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func watch(_ target:ComposerTarget) {
-        guard observedPID != target.pid else { return }
+        if observedPID == target.pid, let window=observedWindow, CFEqual(window,target.window) { return }
         if let old=observer { CFRunLoopRemoveSource(CFRunLoopGetMain(),AXObserverGetRunLoopSource(old),.commonModes) }
-        observedPID=target.pid
         var value:AXObserver?
         let callback:AXObserverCallback = { _,_,_,info in
             guard let info=info else { return }
@@ -184,6 +191,7 @@ final class Controller: NSObject, NSApplicationDelegate, NSWindowDelegate {
             DispatchQueue.main.async { owner.layoutChanged(invalidate:true) }
         }
         guard AXObserverCreate(target.pid,callback,&value) == .success, let created=value else { return }
+        observedPID=target.pid; observedWindow=target.window
         observer=created
         let app=AXUIElementCreateApplication(target.pid)
         let info=Unmanaged.passUnretained(self).toOpaque()
@@ -278,7 +286,7 @@ final class Controller: NSObject, NSApplicationDelegate, NSWindowDelegate {
                         if let error=error { self.finish(error.localizedDescription) }
                         else { self.undoTarget=target; self.undoOriginal=draft; self.undoOptimized=output; self.finish("优化完成；Ctrl+Option+Z 撤销") }
                     }
-                } else { self.finish("优化完成 · "+self.caption) }
+                } else { self.finish(self.inputView?.string == draft ? "优化完成 · "+self.caption : "优化完成，结果对应点击时的原稿；新输入已保留。") }
             }
         }
     }
@@ -295,13 +303,15 @@ final class Controller: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func textArea(editable:Bool) -> (NSScrollView,NSTextView) {
-        let view:NSTextView=editable ? PromptTextView() : NSTextView()
+        let view:NSTextView=editable ? PromptTextView() : ResultTextView()
         view.isEditable=editable; view.isSelectable=true; view.isRichText=false
         view.font=NSFont.systemFont(ofSize:14); view.textColor = .white
         view.backgroundColor=NSColor(calibratedWhite:52/255,alpha:1); view.textContainerInset=NSSize(width:10,height:10)
         view.autoresizingMask=[.width]; view.isVerticallyResizable=true; view.isHorizontallyResizable=false
         view.textContainer?.widthTracksTextView=true
         view.menu=optionsMenu(inPanel:true)
+        if let input=view as? PromptTextView { input.options={ [weak self] in self?.optionsMenu(inPanel:true) ?? NSMenu() } }
+        if let output=view as? ResultTextView { output.options={ [weak self] in self?.optionsMenu(inPanel:true) ?? NSMenu() } }
         let scroll=NSScrollView(); scroll.hasVerticalScroller=true; scroll.borderType = .lineBorder
         scroll.documentView=view; scroll.translatesAutoresizingMaskIntoConstraints=false
         return (scroll,view)
@@ -379,7 +389,45 @@ final class Controller: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 }
 
-if CommandLine.arguments.contains("--diagnose") {
+if let smoke=CommandLine.arguments.firstIndex(of:"--ui-smoke"), CommandLine.arguments.count>smoke+1 {
+    let app=NSApplication.shared
+    app.setActivationPolicy(.accessory)
+    let controller=Controller()
+    controller.showPanel()
+    let output=URL(fileURLWithPath:CommandLine.arguments[smoke+1],isDirectory:true)
+    try! FileManager.default.createDirectory(at:output,withIntermediateDirectories:true)
+    precondition(controller.optionsMenu(inPanel:false).items.map{$0.title} == ["简短","适中","详细","单独对话框模式","更改模型"])
+    precondition(controller.optionsMenu(inPanel:true).items.map{$0.title} == ["简短","适中","详细","初始模式","更改模型"])
+    var count=0
+    let text=controller.inputView!
+    text.optimize={ count += 1 }
+    func key(_ flags:NSEvent.ModifierFlags = [], repeated:Bool = false) -> NSEvent {
+        NSEvent.keyEvent(with:.keyDown,location:.zero,modifierFlags:flags,timestamp:0,
+            windowNumber:controller.panel!.windowNumber,context:nil,characters:"\r",charactersIgnoringModifiers:"\r",isARepeat:repeated,keyCode:36)!
+    }
+    text.keyDown(with:key()); precondition(count == 1)
+    text.keyDown(with:key(repeated:true)); precondition(count == 1)
+    text.keyDown(with:key(.shift)); precondition(count == 1)
+    text.setMarkedText("拼音",selectedRange:NSRange(location:0,length:2),replacementRange:NSRange(location:NSNotFound,length:0))
+    precondition(text.hasMarkedText())
+    text.keyDown(with:key()); precondition(count == 1)
+    text.unmarkText()
+    text.string="参考图片格式，将胸部相机 IMU 数据通过 UDP 正常发出。"
+    controller.outputView?.string="按参考图片中的格式导出并通过 UDP 发送胸部相机 IMU 数据。当前只实现发送端，机械臂接收功能待改装后实现。"
+    func png(_ view:NSView,_ name:String) {
+        view.layoutSubtreeIfNeeded()
+        let bitmap=view.bitmapImageRepForCachingDisplay(in:view.bounds)!
+        view.cacheDisplay(in:view.bounds,to:bitmap)
+        try! bitmap.representation(using:.png,properties:[:])!.write(to:output.appendingPathComponent(name))
+    }
+    png(controller.panel!.contentView!,"macos-standalone.png")
+    let wand=WandView(frame:NSRect(x:0,y:0,width:26,height:26))
+    png(wand,"macos-circle.png")
+    controller.returnInitial()
+    let report:[String:Any]=["menus":5,"enter":true,"shiftEnter":true,"repeatedEnterIgnored":true,"markedTextEnterIgnored":true,"buttonSize":26,"realCodex":false]
+    try! JSONSerialization.data(withJSONObject:report,options:[.prettyPrinted,.sortedKeys]).write(to:output.appendingPathComponent("macos-ui-smoke.json"))
+    print("Native macOS menu, Enter/IME and rendering checks passed")
+} else if CommandLine.arguments.contains("--diagnose") {
     let config=Controller()
     let payload:[String:Any] = ["platform":"macOS", "version":"1.1.0", "accessibility":AXIsProcessTrusted(),
                                "buttonSize":26, "anchorGap":8, "menuItems":5,
