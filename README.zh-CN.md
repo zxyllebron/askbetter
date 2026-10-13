@@ -13,7 +13,7 @@ Windows 上的 Codex 桌面提示词优化助手。点击输入框模型选择�
 | Windows 10/11 | [Windows ZIP](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.1/AskBetter-Windows.zip) | 下方直接使用步骤 |
 | macOS 13+，Apple Silicon | [Mac arm64 ZIP](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.1/AskBetter-macOS-arm64.zip) | [Mac 说明](https://github.com/zxyllebron/askbetter/blob/main/macos/README.md) |
 | macOS 13+，Intel | [Mac x86_64 ZIP](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.1/AskBetter-macOS-x86_64.zip) | [Mac 说明](https://github.com/zxyllebron/askbetter/blob/main/macos/README.md) |
-| Ubuntu 24.04，GNOME 46 | [Ubuntu X11/Wayland 包](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.2/AskBetter-Ubuntu-24.04-GNOME.tar.gz) | [Ubuntu 说明](https://github.com/zxyllebron/askbetter/blob/main/linux/README.md) |
+| Ubuntu 24.04，GNOME 46 | [Ubuntu X11/Wayland 包](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.3/AskBetter-Ubuntu-24.04-GNOME.tar.gz) | [Ubuntu 说明](https://github.com/zxyllebron/askbetter/blob/main/linux/README.md) |
 
 Mac 和 Ubuntu 目前作为预览版发布。已完成的系统接口测试、模拟编辑器测试与尚需真实 Codex 客户端验证的项目，见[平台测试报告](https://github.com/zxyllebron/askbetter/blob/main/docs/platform-testing.md)。[Windows v1.0.0](https://github.com/zxyllebron/askbetter/releases/tag/v1.0.0) 仍可下载。
 
@@ -21,7 +21,7 @@ Ubuntu 用户解压后运行一次 `./install.sh` 即可自动安装缺失依赖
 
 ## 功能
 
-- 26 × 26 逻辑像素圆钮，使用 16 × 16 魔棒图标，位于模型选择器左侧。
+- 26 × 26 逻辑像素圆钮，使用 16 × 16 魔棒图标，位于模型选择器旁。Ubuntu 的普通 ChatGPT 紧凑输入框会将圆钮放在输入框上方，避免遮挡文字。
 - 简短、适中、详细三档独立优化指令；只改写草稿，不执行草稿里的任务。
 - 回填草稿，不自动发送；支持撤销上次回填。
 - 切换聊天时重新识别输入框；实际缩放时隐藏圆钮，稳定后恢复。单按 Ctrl 不隐藏。

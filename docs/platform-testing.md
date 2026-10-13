@@ -32,6 +32,8 @@ On 2026-10-13, a signed-in desktop check passed on Ubuntu 24.04.3, GNOME 46, Way
 
 The rich Chromium fixture now uses embedded paragraph objects, matching the actual client behavior that previously produced the U+FFFC object placeholder. Its X11 integration check also passes multiline replacement/undo, three editing modes, clipboard restoration, changed-draft/window rejection, positioning, and resize settling. Fresh source-ZIP installation was checked with isolated user settings: the application-menu entry is valid, the bundled desktop CLI is found without PATH, and the first-run editor preserves initial button mode for the next desktop login.
 
+The same-window chat regression now switches through `Work with Codex`, `Work with ChatGPT`, and compact `Ask ChatGPT` editors, including a model picker named `Select ChatGPT model` placed immediately beside the field. The wand follows each layout, compact positioning stays outside the text field, and replacement/undo pass in all three. Switching to another chat with identical draft text while optimization is pending preserves the destination draft. On the actual Linux desktop, the compact ChatGPT label and adjacent layout were reproduced and recognized after the fix.
+
 KDE, other compositors, other GNOME major versions, browser tabs, and IDE input boxes are not covered by this package. No claim of universal Linux compatibility is made.
 
 ## Reproducing checks

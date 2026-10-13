@@ -15,7 +15,7 @@ No manual CLI path or accessibility configuration is needed for the standard Cod
 
 ## Use
 
-Click the 26-pixel wand button to optimize and replace the current draft without sending it. Right-click for Brief, Moderate, Detailed, Standalone dialog, and Change model. The bundled interface uses the same Chinese labels as Windows.
+The 26-pixel wand follows the foreground chat when switching between Codex tasks, Work chats, and ordinary ChatGPT chats in the desktop app. In expanded composers it stays to the left of the model selector. In compact ChatGPT composers it sits just above the input, leaving the text field unobstructed. Click it to optimize and replace the current draft without sending it. Right-click for Brief, Moderate, Detailed, Standalone dialog, and Change model. The bundled interface uses the same Chinese labels as Windows.
 
 The button hides while resizing or zooming, then returns after the layout settles. Pressing Ctrl alone does not hide it. Draft changes or a different window prevent replacement; the completed result can be viewed in the standalone dialog.
 
