@@ -114,6 +114,13 @@ try:
     independent_y=frame['y']+measured['y']*sy+(measured['height']*sy-26)/2
     assert abs(current['x']-independent_x)<2 and abs(current['y']-independent_y)<2,{'button':current,'fixtureGeometry':measured,'expected':(independent_x,independent_y)}
     checks.append('window-relative AT-SPI geometry maps to GNOME circle position')
+    driver.Action('ctrl-down')
+    try:
+        time.sleep(0.5)
+        assert state().get('visible'),'Ctrl alone hid the circular button'
+    finally:
+        driver.Action('ctrl-up')
+    checks.append('Ctrl alone keeps the circular button visible')
 
     for style in ('brief','moderate','detailed'):
         driver.Action(style)

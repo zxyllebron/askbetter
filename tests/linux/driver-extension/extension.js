@@ -1,6 +1,7 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import Meta from 'gi://Meta';
+import Clutter from 'gi://Clutter';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
@@ -51,7 +52,12 @@ export default class Driver extends Extension {
             throw new Error('Test driver only operates on its own fixture');
         if (action === 'click')
             extension._button.emit('clicked',1);
-        else if (action === 'resize') {
+        else if (action === 'ctrl-down' || action === 'ctrl-up') {
+            this._keyboard ??= Clutter.get_default_backend().get_default_seat()
+                .create_virtual_device(Clutter.InputDeviceType.KEYBOARD_DEVICE);
+            this._keyboard.notify_keyval(GLib.get_monotonic_time(),Clutter.KEY_Control_L,
+                action === 'ctrl-down' ? Clutter.KeyState.PRESSED : Clutter.KeyState.RELEASED);
+        } else if (action === 'resize') {
             window.unmaximize(Meta.MaximizeFlags.BOTH);
             const rect=window.get_frame_rect();
             window.move_resize_frame(true,rect.x,rect.y,rect.width-100,rect.height-60);
