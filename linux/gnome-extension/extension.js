@@ -153,7 +153,9 @@ export default class AskBetter extends Extension {
         const window = global.display.focus_window;
         if (!window || !/^(codex|chatgpt|com\.openai\.(codex|chatgpt))$/i.test(window.get_wm_class() ?? ''))
             return {};
-        const rect = window.get_buffer_rect();
+        // The rendered buffer can include invisible CSD shadows; accessibility
+        // window dimensions describe the visible frame, not that extra padding.
+        const rect = window.get_frame_rect();
         return {pid: window.get_pid(), windowId: String(window.get_stable_sequence()), title: window.get_title(),
             buffer: {x: rect.x, y: rect.y, width: rect.width, height: rect.height}, moving: this._moving};
     }

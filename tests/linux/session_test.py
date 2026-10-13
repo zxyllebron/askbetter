@@ -76,7 +76,7 @@ def command(operation, **values):
         if reply.get('sent'):
             sent=True
         if reply.get('id') == counter:
-            return reply.get('text')
+            return reply.get('geometry') if operation=='geometry' else reply.get('text')
     raise AssertionError('Fixture command timed out')
 
 
@@ -101,6 +101,12 @@ try:
     target=access.discover(current['context'])
     expected=access.position(target)
     assert abs(current['x']-expected.x)<1 and abs(current['y']-expected.y)<1,current
+    measured=command('geometry')
+    frame=current['context']['buffer']
+    sx,sy=frame['width']/measured['outerWidth'],frame['height']/measured['outerHeight']
+    independent_x=frame['x']+measured['x']*sx-34
+    independent_y=frame['y']+measured['y']*sy+(measured['height']*sy-26)/2
+    assert abs(current['x']-independent_x)<2 and abs(current['y']-independent_y)<2,{'button':current,'fixtureGeometry':measured,'expected':(independent_x,independent_y)}
     checks.append('window-relative AT-SPI geometry maps to GNOME circle position')
 
     for style in ('brief','moderate','detailed'):

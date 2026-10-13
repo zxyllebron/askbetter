@@ -44,7 +44,10 @@ app.whenReady().then(async()=>{
         else if(request.op==='quit')
             app.quit();
         const text=await window.webContents.executeJavaScript("document.getElementById('editor').innerText");
-        console.log(JSON.stringify({id:request.id,text}));
+        const reply={id:request.id,text};
+        if(request.op==='geometry')
+            reply.geometry=await window.webContents.executeJavaScript(`(()=>{const r=document.getElementById('model').getBoundingClientRect(); const border=(outerWidth-innerWidth)/2; return {x:r.x+border,y:r.y+(outerHeight-innerHeight)-border,width:r.width,height:r.height,outerWidth,outerHeight};})()`);
+        console.log(JSON.stringify(reply));
     }
 });
 app.on('window-all-closed',()=>app.quit());

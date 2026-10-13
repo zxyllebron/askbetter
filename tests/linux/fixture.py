@@ -11,6 +11,7 @@ GLib.set_application_name("Codex")
 GLib.set_prgname("Codex")
 windows=[]
 editors=[]
+models=[]
 
 
 def create(title, draft):
@@ -29,14 +30,15 @@ def create(title, draft):
     row=Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL,spacing=12)
     spacer=Gtk.Label(label="")
     row.pack_start(spacer,True,True,0)
-    row.pack_start(Gtk.Button(label="GPT-6 Luna"),False,False,0)
+    model=Gtk.Button(label="GPT-6 Luna")
+    row.pack_start(model,False,False,0)
     row.pack_start(Gtk.Button(label="Microphone"),False,False,0)
     send=Gtk.Button(label="Send")
     send.connect("clicked",lambda *_:print(json.dumps({"sent":True}),flush=True))
     row.pack_start(send,False,False,0)
     box.pack_start(row,False,False,0)
     window.show_all(); window.present()
-    windows.append(window); editors.append(editor)
+    windows.append(window); editors.append(editor); models.append(model)
     return window
 
 
@@ -54,7 +56,12 @@ def handle(request):
     elif operation == "quit":
         Gtk.main_quit()
     text=buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter(),True)
-    print(json.dumps({"id":request["id"],"text":text},ensure_ascii=False),flush=True)
+    reply={"id":request["id"],"text":text}
+    if operation == "geometry":
+        x,y=models[index].translate_coordinates(windows[index],0,0)[-2:]
+        reply["geometry"]={"x":x,"y":y,"width":models[index].get_allocated_width(),"height":models[index].get_allocated_height(),
+                           "outerWidth":windows[index].get_allocated_width(),"outerHeight":windows[index].get_allocated_height()}
+    print(json.dumps(reply,ensure_ascii=False),flush=True)
     return False
 
 
