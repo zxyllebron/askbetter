@@ -65,6 +65,9 @@ jobs:
       matrix:
         session: [x11, wayland]
         fixture: [gtk, electron]
+        include:
+          - session: wayland
+            fixture: electron-xwayland
     steps:
       - uses: actions/checkout@v4
       - name: Install Ubuntu desktop test dependencies
@@ -72,7 +75,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gnome-shell gnome-shell-extension-prefs gjs xvfb xauth dbus-x11 python3-gi python3-pyatspi python3-dbus gir1.2-gtk-3.0 libglib2.0-bin
       - name: Install browser-backed fixture dependency
-        if: matrix.fixture == 'electron'
+        if: startsWith(matrix.fixture, 'electron')
         run: |
           npm install --prefix artifacts/electron --no-save electron@44.7.0
           artifacts/electron/node_modules/.bin/install-electron

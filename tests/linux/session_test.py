@@ -46,13 +46,17 @@ except Exception:
 helper=dbus.Interface(bus.get_object('org.askbetter.Desktop','/org/askbetter/Desktop'),'org.askbetter.Desktop')
 kind=os.environ.get('ASKBETTER_FIXTURE','gtk')
 command_line=['/usr/bin/python3',str(ROOT/'tests/linux/fixture.py')]
-if kind == 'electron':
+fixture_environment={**os.environ,'PYTHONIOENCODING':'utf-8'}
+if kind.startswith('electron'):
     binary=str(ROOT/'artifacts/electron/node_modules/.bin/electron')
     command_line=[binary,str(ROOT/'tests/linux/electron-fixture.cjs'),'--class=Codex']
-    if os.environ['XDG_SESSION_TYPE']=='wayland':
+    if kind == 'electron-xwayland':
+        fixture_environment['DISPLAY']=json.loads(str(driver.State()))['xwaylandDisplay']
+        command_line.append('--ozone-platform=x11')
+    elif os.environ['XDG_SESSION_TYPE']=='wayland':
         command_line.append('--ozone-platform=wayland')
 fixture=subprocess.Popen(command_line,stdin=subprocess.PIPE,
-    stdout=subprocess.PIPE,text=True,encoding='utf-8',env={**os.environ,'PYTHONIOENCODING':'utf-8'})
+    stdout=subprocess.PIPE,text=True,encoding='utf-8',env=fixture_environment)
 replies=queue.Queue()
 def reader():
     for line in fixture.stdout:
