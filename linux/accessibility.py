@@ -62,7 +62,9 @@ class DesktopAccess:
         for index in range(desktop.childCount):
             app = desktop.getChildAtIndex(index)
             try:
-                if app.get_process_id() == context["pid"] and APPLICATION.fullmatch(app.name or ""):
+                # GNOME identifies the foreground application; AT-SPI names may be
+                # toolkit names such as Chromium rather than the desktop app name.
+                if app.get_process_id() == context["pid"]:
                     return app
             except Exception:
                 continue

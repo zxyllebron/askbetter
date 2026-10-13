@@ -31,10 +31,15 @@ wait(lambda:bus.name_has_owner('org.gnome.Shell'),'GNOME Shell session started')
 extensions=dbus.Interface(bus.get_object('org.gnome.Shell','/org/gnome/Shell'),'org.gnome.Shell.Extensions')
 inventory=wait(lambda:extensions.ListExtensions(),'desktop extensions registered')
 print('Desktop extension inventory:',inventory,flush=True)
-for extension_uuid in ('askbetter@zxyllebron.github.io','askbetter-tests@local'):
-    print('Enable',extension_uuid,extensions.EnableExtension(extension_uuid),flush=True)
+print('Enable driver',extensions.EnableExtension('askbetter-tests@local'),flush=True)
 wait(lambda:bus.name_has_owner('org.askbetter.Tests'),'GNOME test extension enabled')
 driver=dbus.Interface(bus.get_object('org.askbetter.Tests','/org/askbetter/Tests'),'org.askbetter.Tests')
+print('Initial driver state:',driver.State(),flush=True)
+# The nested shell can finish initial loading after its D-Bus object is exported.
+# Enable the app only after that point, serializing the two settings transitions.
+extensions.DisableExtension('askbetter@zxyllebron.github.io')
+wait(lambda:'askbetter@zxyllebron.github.io' not in json.loads(str(driver.State()))['enabled'],'helper disabled during initial load')
+extensions.EnableExtension('askbetter@zxyllebron.github.io')
 try:
     wait(lambda:bus.name_has_owner('org.askbetter.Desktop'),'helper service started')
 except Exception:

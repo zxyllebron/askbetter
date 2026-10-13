@@ -20,12 +20,13 @@ export default class Driver extends Extension {
     }
     State() {
         const extension=this._extension();
-        const context=extension._context();
+        const context=extension?._context?.() ?? {};
         const window=global.display.focus_window;
         return JSON.stringify({context,focusedClass:window?.get_wm_class(),focusedTitle:window?.get_title(),
-            visible:extension._button.visible,x:extension._button.x,y:extension._button.y,
-            size:extension._button.width,caption:extension._caption,
-            menu:extension._menu._getMenuItems().map(item=>item.label?.text)});
+            enabled:global.settings.get_strv('enabled-extensions'),disabled:global.settings.get_strv('disabled-extensions'),
+            visible:extension?._button?.visible,x:extension?._button?.x,y:extension?._button?.y,
+            size:extension?._button?.width,caption:extension?._caption,
+            menu:extension?._menu?._getMenuItems().map(item=>item.label?.text)});
     }
     Action(action) {
         const extension=this._extension();

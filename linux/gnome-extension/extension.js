@@ -141,7 +141,7 @@ export default class AskBetter extends Extension {
 
     _context() {
         const window = global.display.focus_window;
-        if (!window || !/^(codex|chatgpt)$/i.test(window.get_wm_class() ?? ''))
+        if (!window || !/^(codex|chatgpt|com\.openai\.(codex|chatgpt))$/i.test(window.get_wm_class() ?? ''))
             return {};
         const rect = window.get_buffer_rect();
         return {pid: window.get_pid(), windowId: String(window.get_stable_sequence()), title: window.get_title(),
