@@ -201,6 +201,7 @@ export default class AskBetter extends Extension {
             }
             try {
                 const state = JSON.parse(values[0]);
+                this._lastState = state;
                 this._caption = state.caption+(state.notice ? `\n${state.notice}` : '');
                 this._button.accessible_name = this._caption;
                 for (const [style, item] of Object.entries(this._styleItems)) {

@@ -75,6 +75,7 @@ jobs:
         if: matrix.fixture == 'electron'
         run: |
           npm install --prefix artifacts/electron --no-save electron@44.7.0
+          artifacts/electron/node_modules/.bin/install-electron
           sudo chown root:root artifacts/electron/node_modules/electron/dist/chrome-sandbox
           sudo chmod 4755 artifacts/electron/node_modules/electron/dist/chrome-sandbox
       - name: GNOME circular button and real AT-SPI editor checks
