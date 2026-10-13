@@ -1,0 +1,21 @@
+# Per-user preferences, CLI paths and temporary files
+settings.json
+*.tmp
+*.log
+.env
+.env.*
+auth.json
+
+# Build/test/release output
+artifacts/
+*.zip
+*.pdb
+*.exe
+!askbetter/AskBetter.exe
+
+# Editors and OS
+.vs/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini

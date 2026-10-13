@@ -1,0 +1,4 @@
+interface:
+  display_name: "AskBetter 提示词优化"
+  short_description: "整理提示词结构并删减冗余，完整保留原意、关键要求与限制"
+  default_prompt: "使用 $askbetter 按适中模式优化以下提示词，重新组织任务和目标，保留原意、背景、关键要求与限制。"

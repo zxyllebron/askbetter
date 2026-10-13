@@ -1,0 +1,13 @@
+{
+  "model": "gpt-6-luna",
+  "effort": "low",
+  "serviceTier": "fast",
+  "codexPath": "",
+  "lengthStyle": "moderate",
+  "uiMode": "initial",
+  "editableNamePattern": "(?i)(work with codex|do anything|message|prompt|ask|follow.up|消息|输入|提问|追问)",
+  "modelNamePattern": "(?i)(GPT.?6|GPT.?5|选择模型|select model)",
+  "timeoutSeconds": 90,
+  "buttonSize": 26,
+  "anchorGap": 8
+}
