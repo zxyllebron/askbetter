@@ -10,7 +10,7 @@ New-Item -ItemType Directory -Path $appStage -Force | Out-Null
 foreach ($name in @('AskBetter.exe','settings.example.json','optimizer-prompt.txt','optimizer-prompt-brief.txt','optimizer-prompt-detailed.txt','SKILL.md','agents','使用说明.md','install-skill.ps1')) {
     Copy-Item -LiteralPath (Join-Path $runtimeRoot $name) -Destination $appStage -Recurse
 }
-foreach ($name in @('README.md','LICENSE')) {
+foreach ($name in @('README.md','README.zh-CN.md','LICENSE')) {
     Copy-Item -LiteralPath (Join-Path $repoRoot $name) -Destination $stageRoot
 }
 $zipPath = Join-Path $releaseRoot 'AskBetter-Windows.zip'
