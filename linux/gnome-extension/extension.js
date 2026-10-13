@@ -158,8 +158,10 @@ export default class AskBetter extends Extension {
         // The rendered buffer can include invisible CSD shadows; accessibility
         // window dimensions describe the visible frame, not that extra padding.
         const rect = window.get_frame_rect();
+        const client = window.frame_rect_to_client_rect(rect);
         return {pid: window.get_pid(), windowId: String(window.get_stable_sequence()), title: window.get_title(),
-            buffer: {x: rect.x, y: rect.y, width: rect.width, height: rect.height}, moving: this._moving};
+            buffer: {x: rect.x, y: rect.y, width: rect.width, height: rect.height},
+            client: {x: client.x, y: client.y, width: client.width, height: client.height}, moving: this._moving};
     }
 
     _paste(ticket) {

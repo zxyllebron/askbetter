@@ -103,9 +103,8 @@ try:
     assert abs(current['x']-expected.x)<1 and abs(current['y']-expected.y)<1,current
     measured=command('geometry')
     frame=current['context']['buffer']
-    if kind == 'gtk':
-        measured['y'] += frame['height']-measured['outerHeight']
-        measured['outerHeight'] = frame['height']
+    measured['y'] += frame['height']-measured['outerHeight']
+    measured['outerHeight'] = frame['height']
     sx,sy=frame['width']/measured['outerWidth'],frame['height']/measured['outerHeight']
     independent_x=frame['x']+measured['x']*sx-34
     independent_y=frame['y']+measured['y']*sy+(measured['height']*sy-26)/2

@@ -119,7 +119,13 @@ class DesktopAccess:
     def position(self, target, size=26, gap=8):
         context = target.context
         buffer = Rect(**context["buffer"])
-        model = to_shell(self._rectangle(target.model), self._rectangle(target.frame), buffer)
+        frame = self._rectangle(target.frame)
+        client = Rect(**context.get("client", context["buffer"]))
+        # Chromium's AT-SPI window excludes server-side decorations; GTK's
+        # accessible frame includes them. Match the exposed dimensions first.
+        if abs(frame.height-client.height) < abs(frame.height-buffer.height):
+            buffer = client
+        model = to_shell(self._rectangle(target.model), frame, buffer)
         return anchor(model, size, gap)
 
     def unchanged(self, target, draft, context):
@@ -136,7 +142,11 @@ class DesktopAccess:
             editable = target.editor.queryEditableText()
         except NotImplementedError:
             raise PasteRequired()
-        if editable.setTextContents(result) is False:
+        try:
+            accepted = editable.setTextContents(result)
+        except NotImplementedError:
+            raise PasteRequired()
+        if accepted is False:
             raise RuntimeError("Codex did not accept the replacement; result available in the standalone dialog")
         if self.read(target) != result:
             raise RuntimeError("Unable to verify the replacement; check the draft before sending")
