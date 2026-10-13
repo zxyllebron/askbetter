@@ -140,6 +140,13 @@ try:
     (output/('linux-'+os.environ['XDG_SESSION_TYPE']+'.json')).write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
     print(json.dumps(report,ensure_ascii=False,indent=2))
 finally:
+    if sys.exc_info()[0] is not None:
+        try:
+            debug=state()
+            print('Failure state:',json.dumps(debug,ensure_ascii=False),flush=True)
+            print('Failure service state:',helper.Poll(json.dumps(debug.get('context',{}))),flush=True)
+        except Exception as error:
+            print('State diagnostic failed:',str(error),flush=True)
     try:
         command('quit')
         fixture.wait(timeout=5)
