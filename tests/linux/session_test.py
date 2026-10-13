@@ -56,7 +56,10 @@ fixture=subprocess.Popen(command_line,stdin=subprocess.PIPE,
 replies=queue.Queue()
 def reader():
     for line in fixture.stdout:
-        replies.put(json.loads(line))
+        try:
+            replies.put(json.loads(line))
+        except ValueError:
+            continue
 threading.Thread(target=reader,daemon=True).start()
 sent=False
 counter=0
@@ -83,9 +86,12 @@ def state():
 
 checks=[]
 try:
+    ready=replies.get(timeout=15)
+    assert ready.get('ready'),ready
+    fixture_pid=ready['pid']
     driver.Action('desktop')
     wait(lambda:driver.Action('focus1') or state().get('focusedTitle')=='AskBetter fixture 1','fixture receives foreground focus')
-    current=wait(lambda:(value if value.get('visible') and value.get('context',{}).get('pid')==fixture.pid else None)
+    current=wait(lambda:(value if value.get('visible') and value.get('context',{}).get('pid')==fixture_pid else None)
                  if (value:=state()) else None,'circle appears on the focused fixture')
     assert current['size'] == 26, current
     assert current['menu'] == ['简短','适中','详细','单独对话框模式','更改模型'], current

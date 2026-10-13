@@ -50,14 +50,14 @@ export default class Driver extends Extension {
         if (!window?.get_title()?.startsWith('AskBetter fixture'))
             throw new Error('Test driver only operates on its own fixture');
         if (action === 'click')
-            extension._button.emit('clicked');
+            extension._button.emit('clicked',1);
         else if (action === 'resize') {
             const rect=window.get_frame_rect();
             window.move_resize_frame(true,rect.x,rect.y,rect.width-100,rect.height-60);
         } else if (action === 'undo')
             extension._call('Undo','(s)',[JSON.stringify(extension._context())]);
         else if (['brief','moderate','detailed'].includes(action))
-            extension._styleItems[action].emit('activate');
+            extension._styleItems[action].activate(null);
         else
             throw new Error('Unknown test action');
     }
