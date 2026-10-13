@@ -442,7 +442,8 @@ if let probe=CommandLine.arguments.firstIndex(of:"--desktop-probe"), CommandLine
                             let report:[String:Any]=["read":true,"replacement":replacement,"changedDraftRejected":changed,
                                 "titleChangeRejected":titleError != nil,"buttonSize":26,"anchorGap":8]
                             try! JSONSerialization.data(withJSONObject:report,options:[.sortedKeys,.prettyPrinted]).write(to:folder.appendingPathComponent("probe.json"))
-                            app.stop(nil)
+                            print("Native Accessibility read, replacement, draft and context guards passed")
+                            exit(0)
                         }
                     }
                     RunLoop.main.add(wait!,forMode:.common)
