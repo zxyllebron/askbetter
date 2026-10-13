@@ -138,7 +138,7 @@ try:
         wait(lambda:not json.loads(str(helper.Poll(json.dumps(state()['context']))))['busy'],'undo verification completes')
         checks.append(style+' button -> fake Codex -> draft replacement -> undo')
     if kind.startswith('electron') and not initial_clipboard_formats:
-        wait(lambda:not state().get('clipboardFormats'),'empty clipboard restored safely')
+        wait(lambda:str(driver.ClipboardText())=='','empty clipboard restored safely')
         checks.append('empty clipboard restored without a zero-byte GNOME memory source')
 
     command('set',text='优化前的草稿')

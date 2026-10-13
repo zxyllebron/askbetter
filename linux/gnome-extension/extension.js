@@ -172,7 +172,10 @@ export default class AskBetter extends Extension {
             formats.find(value => value.startsWith('text/plain')) ?? formats[0];
         const save = callback => {
             if (mime)
-                clipboard.get_content(type, mime, (_, bytes) => callback(bytes));
+                // St's callback lends GBytes only for the callback lifetime.
+                // Copy the bytes before crossing the asynchronous D-Bus call.
+                clipboard.get_content(type, mime, (_, bytes) =>
+                    callback(bytes ? new Uint8Array(bytes.get_data()) : null));
             else
                 callback(null);
         };
@@ -182,15 +185,7 @@ export default class AskBetter extends Extension {
                 const result = values?.[0];
                 if (!result || this._context().windowId !== context.windowId)
                     return;
-                const selection = global.display.get_selection();
-                const selectionType = Meta.SelectionType.SELECTION_CLIPBOARD;
-                let ownedSource = null;
-                const changed = selection.connect('owner-changed', (_, changedType, source) => {
-                    if (changedType === selectionType)
-                        ownedSource = source;
-                });
                 clipboard.set_text(type, result);
-                selection.disconnect(changed);
                 this._keyboard ??= Clutter.get_default_backend().get_default_seat()
                     .create_virtual_device(Clutter.InputDeviceType.KEYBOARD_DEVICE);
                 const key = (symbol, pressed) => this._keyboard.notify_keyval(GLib.get_monotonic_time(),
@@ -203,12 +198,13 @@ export default class AskBetter extends Extension {
                     this._call('FinishPaste', '(ss)', [ticket, JSON.stringify(this._context())]);
                     clipboard.get_text(type, (_, current) => {
                         if (current === result) {
-                            if (original && original.get_size() > 0)
-                                clipboard.set_content(type, mime, original);
-                            else if (ownedSource)
-                                // GNOME 46 cannot create a memory source from
-                                // zero bytes. Relinquish our owner instead.
-                                selection.unset_owner(selectionType, ownedSource);
+                            if (original?.length)
+                                clipboard.set_content(type, mime, new GLib.Bytes(original));
+                            else
+                                // GNOME 46's memory source rejects zero bytes.
+                                // A NUL-terminated empty string reads as empty.
+                                clipboard.set_content(type, 'text/plain;charset=utf-8',
+                                    new GLib.Bytes(new Uint8Array([0])));
                         }
                     });
                     return GLib.SOURCE_REMOVE;

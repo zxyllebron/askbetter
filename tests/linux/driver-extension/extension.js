@@ -9,6 +9,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 const XML=`<node><interface name="org.askbetter.Tests">
 <method name="State"><arg type="s" direction="out"/></method>
 <method name="Action"><arg type="s" direction="in"/></method>
+<method name="ClipboardText"><arg type="s" direction="out"/></method>
 </interface></node>`;
 
 export default class Driver extends Extension {
@@ -19,6 +20,10 @@ export default class Driver extends Extension {
     }
     _extension() {
         return Main.extensionManager.lookup('askbetter@zxyllebron.github.io').stateObj;
+    }
+    ClipboardTextAsync(_, invocation) {
+        St.Clipboard.get_default().get_text(St.ClipboardType.CLIPBOARD, (_, text) =>
+            invocation.return_value(new GLib.Variant('(s)',[text ?? ''])));
     }
     State() {
         const extension=this._extension();
