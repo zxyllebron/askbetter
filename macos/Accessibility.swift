@@ -62,7 +62,10 @@ final class DesktopAccess {
 
     func discover(pid: pid_t, fresh: Bool = false) throws -> ComposerTarget {
         let now = ProcessInfo.processInfo.systemUptime
+        let application = AXUIElementCreateApplication(pid)
+        let focused = attribute(application, kAXFocusedWindowAttribute as CFString)
         if !fresh, let target = cached, target.pid == pid, now-discoveredAt < 2,
+           focused != nil, CFEqual(focused!, target.window),
            rectangle(target.editor) != nil, rectangle(target.model) != nil,
            textAttribute(target.window, kAXTitleAttribute as CFString) == target.title { return target }
         let app = AXUIElementCreateApplication(pid)
@@ -70,6 +73,9 @@ final class DesktopAccess {
         guard let rawWindow = attribute(app, kAXFocusedWindowAttribute as CFString),
               CFGetTypeID(rawWindow) == AXUIElementGetTypeID() else { throw ABError.message("无法识别当前 Codex 窗口") }
         let window = rawWindow as! AXUIElement
+        guard attribute(window, kAXMinimizedAttribute as CFString) as? Bool != true else {
+            throw ABError.message("Codex 窗口已最小化")
+        }
         let windowRect = rectangle(window)
         var stack: [(AXUIElement, AXUIElement?)] = [(window, nil)]
         var editors: [(AXUIElement, ABRect, AXUIElement?)] = []

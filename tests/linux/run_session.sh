@@ -31,6 +31,8 @@ PY
 gsettings set org.gnome.desktop.interface toolkit-accessibility true
 gsettings set org.gnome.shell enabled-extensions "['askbetter@zxyllebron.github.io', 'askbetter-tests@local']"
 gsettings set org.gnome.shell disable-user-extensions false
+gsettings get org.gnome.shell enabled-extensions
+gnome-shell --version
 mkdir -p artifacts/tests
 if [[ "$session" == 'wayland' ]]; then
     gnome-shell --nested --wayland --wayland-display=askbetter-wayland >artifacts/tests/gnome-wayland.log 2>&1 &

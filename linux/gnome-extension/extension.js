@@ -101,7 +101,7 @@ export default class AskBetter extends Extension {
                 this._tooltip.hide();
             });
         this._helper = Gio.Subprocess.new(['/usr/bin/python3', `${this.path}/linux/service.py`],
-            Gio.SubprocessFlags.STDOUT_SILENCE | Gio.SubprocessFlags.STDERR_SILENCE);
+            Gio.SubprocessFlags.STDOUT_SILENCE);
         Gio.DBusProxy.new_for_bus(Gio.BusType.SESSION, Gio.DBusProxyFlags.DO_NOT_AUTO_START, null,
             BUS, PATH, BUS, null, (_, result) => {
                 if (!this._enabled)
@@ -170,7 +170,12 @@ export default class AskBetter extends Extension {
     }
 
     _poll() {
-        if (this._quit || this._inflight || !this._proxy?.get_name_owner())
+        if (this._quit || !this._proxy?.get_name_owner()) {
+            this._button.hide();
+            this._tooltip.hide();
+            return;
+        }
+        if (this._inflight)
             return;
         const context = this._context();
         if (!context.pid && !this._menu.isOpen) {

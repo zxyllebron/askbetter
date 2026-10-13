@@ -21,7 +21,10 @@ final class WandView: NSView {
     }
     override func mouseEntered(with event: NSEvent) { hover = true; needsDisplay = true }
     override func mouseExited(with event: NSEvent) { hover = false; needsDisplay = true }
-    override func mouseDown(with event: NSEvent) { if !busy { action?() } }
+    override func mouseDown(with event: NSEvent) {}
+    override func mouseUp(with event: NSEvent) {
+        if !busy && bounds.contains(convert(event.locationInWindow,from:nil)) { action?() }
+    }
     override func rightMouseDown(with event: NSEvent) { if let menu = options?() { NSMenu.popUpContextMenu(menu, with: event, for: self) } }
     override func draw(_ dirtyRect: NSRect) {
         NSColor(calibratedWhite: hover ? 65/255 : 48/255, alpha: 1).setFill()

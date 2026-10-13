@@ -27,6 +27,11 @@ def wait(predicate, description, seconds=30):
     raise AssertionError(f"Timed out: {description}; last result: {latest}")
 
 
+wait(lambda:bus.name_has_owner('org.gnome.Shell'),'GNOME Shell session started')
+extensions=dbus.Interface(bus.get_object('org.gnome.Shell','/org/gnome/Shell/Extensions'),'org.gnome.Shell.Extensions')
+print('Desktop extension inventory:',extensions.ListExtensions(),flush=True)
+for extension_uuid in ('askbetter@zxyllebron.github.io','askbetter-tests@local'):
+    print('Enable',extension_uuid,extensions.EnableExtension(extension_uuid),flush=True)
 wait(lambda:bus.name_has_owner('org.askbetter.Tests'),'GNOME test extension enabled')
 driver=dbus.Interface(bus.get_object('org.askbetter.Tests','/org/askbetter/Tests'),'org.askbetter.Tests')
 wait(lambda:bus.name_has_owner('org.askbetter.Desktop'),'helper service started')
