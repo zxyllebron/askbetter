@@ -6,6 +6,18 @@ final class RoundPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
+final class FlatButton: NSButton {
+    override func draw(_ dirtyRect:NSRect) {
+        NSColor(calibratedWhite:isHighlighted ? 190/255 : 221/255,alpha:1).setFill()
+        bounds.fill()
+        NSColor(calibratedWhite:120/255,alpha:1).setStroke()
+        let border=NSBezierPath(rect:bounds.insetBy(dx:0.5,dy:0.5)); border.lineWidth=1; border.stroke()
+        let attributes:[NSAttributedString.Key:Any]=[.font:NSFont.systemFont(ofSize:14),.foregroundColor:NSColor.black]
+        let text=title as NSString, size=text.size(withAttributes:attributes)
+        text.draw(at:NSPoint(x:(bounds.width-size.width)/2,y:(bounds.height-size.height)/2),withAttributes:attributes)
+    }
+}
+
 final class WandView: NSView {
     var action: (() -> Void)?
     var options: (() -> NSMenu)?
@@ -125,6 +137,7 @@ final class Controller: NSObject, NSApplicationDelegate, NSWindowDelegate {
         try JSONSerialization.data(withJSONObject: next, options: [.prettyPrinted,.sortedKeys]).write(to: config, options: .atomic)
         try FileManager.default.setAttributes([.posixPermissions:0o600], ofItemAtPath:config.path)
         settings = next
+        optimizeButton?.title="优化 · "+(["brief":"简短","moderate":"适中","detailed":"详细"][style] ?? "适中")
         statusLabel?.stringValue = caption
         refreshStatusMenu()
     }
@@ -331,8 +344,8 @@ final class Controller: NSObject, NSApplicationDelegate, NSWindowDelegate {
             inputView=input as? PromptTextView; inputView?.optimize={ [weak self] in self?.run(self?.inputView?.string ?? "") }
             outputView=output; statusLabel=status
             input.string=lastInput; output.string=lastResult
-            let optimize=NSButton(title:"优化",target:self,action:#selector(runPanel)); optimizeButton=optimize
-            let settingsButton=NSButton(title:"设置",target:self,action:#selector(showOptions(_:)))
+            let optimize=FlatButton(title:"优化 · "+(["brief":"简短","moderate":"适中","detailed":"详细"][style] ?? "适中"),target:self,action:#selector(runPanel)); optimizeButton=optimize
+            let settingsButton=FlatButton(title:"设置",target:self,action:#selector(showOptions(_:)))
             let row=NSStackView(views:[optimize,settingsButton]); row.orientation = .horizontal; row.spacing=10; row.translatesAutoresizingMaskIntoConstraints=false
             for view in [status,inputScroll,row,outputScroll] { content.addSubview(view) }
             NSLayoutConstraint.activate([

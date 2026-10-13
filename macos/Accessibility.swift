@@ -57,12 +57,19 @@ enum ABError: LocalizedError {
 final class DesktopAccess {
     private var cached: ComposerTarget?
     private var discoveredAt: TimeInterval = 0
+    private var accessibilityPID: pid_t = 0
 
     func invalidate() { cached = nil }
 
     func discover(pid: pid_t, fresh: Bool = false) throws -> ComposerTarget {
         let now = ProcessInfo.processInfo.systemUptime
         let application = AXUIElementCreateApplication(pid)
+        if accessibilityPID != pid {
+            // Electron documents this flag for third-party assistive clients.
+            // Unsupported native apps simply ignore it; OS permission is still required.
+            _ = AXUIElementSetAttributeValue(application, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+            accessibilityPID = pid
+        }
         let focused = attribute(application, kAXFocusedWindowAttribute as CFString)
         if !fresh, let target = cached, target.pid == pid, now-discoveredAt < 2,
            focused != nil, CFEqual(focused!, target.window),
