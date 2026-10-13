@@ -7,7 +7,7 @@ app.disableHardwareAcceleration();
 app.commandLine.appendSwitch('class', 'Codex');
 app.commandLine.appendSwitch('force-renderer-accessibility');
 const windows=[];
-function html(title,draft) {
+function html(title,draft,compact=false,editorLabel='Work with Codex') {
     const escaped=draft.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
     const rich=process.env.ASKBETTER_RICH_EDITOR === '1';
     const markup=rich ? escaped.split('\n').map(text=>`<p>${text || '<br class="ProseMirror-trailingBreak">'}</p>`).join('') : escaped;
@@ -15,9 +15,13 @@ function html(title,draft) {
       body {font:14px sans-serif;background:#191919;color:#eee;margin:20px;height:calc(100vh - 40px);display:flex;flex-direction:column;gap:12px}
       #editor {background:#343434;flex:1;white-space:pre-wrap;padding:12px;border:1px solid #555;overflow:auto}
       #toolbar {display:flex;gap:12px;justify-content:flex-end} button {padding:6px 12px}
-      </style></head><body><div>AskBetter CI — browser-backed editor fixture</div>
-      <div id="editor" class="${rich ? 'ProseMirror' : ''}" contenteditable="${rich ? 'true' : 'plaintext-only'}" role="textbox" aria-label="Work with Codex" aria-multiline="true">${markup}</div>
-      <div id="toolbar"><button id="model">GPT-6 Luna</button><button>Microphone</button><button id="send">Send</button></div>
+      body.compact #toolbar {gap:4px;align-items:center;margin-top:auto}
+      body.compact #editor {height:36px;min-width:0;box-sizing:border-box;padding:4px}
+      #editor p {margin:0}
+      </style></head><body class="${compact ? 'compact' : ''}"><div>AskBetter CI — browser-backed editor fixture</div>
+      ${compact ? '<div style="flex:1">Compact ChatGPT chat</div><div id="toolbar"><button>Attach</button>' : ''}
+      <div id="editor" class="${rich ? 'ProseMirror' : ''}" contenteditable="${rich ? 'true' : 'plaintext-only'}" role="textbox" aria-label="${editorLabel}" aria-multiline="true">${markup}</div>
+      ${compact ? '' : '<div id="toolbar">'}<button id="model" ${compact ? 'aria-label="Select ChatGPT model"' : ''}>${compact ? 'Auto' : 'GPT-6 Luna'}</button><button>Microphone</button><button id="send">Send</button></div>
       <script>window.__askbetterSent=false;
       document.getElementById('send').onclick=()=>window.__askbetterSent=true;
       document.getElementById('editor').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){window.__askbetterSent=true;e.preventDefault();}};
@@ -45,6 +49,11 @@ app.whenReady().then(async()=>{
                 await window.webContents.executeJavaScript(`document.getElementById('editor').replaceChildren(...${JSON.stringify(request.text)}.split('\\n').map(text=>{const p=document.createElement('p');if(text)p.textContent=text;else{const br=document.createElement('br');br.className='ProseMirror-trailingBreak';p.append(br);}return p;}));`);
             else
                 await window.webContents.executeJavaScript(`document.getElementById('editor').textContent=${JSON.stringify(request.text)};`);
+        }
+        else if(request.op==='chat') {
+            const title=window.getTitle();
+            await window.loadURL('data:text/html;charset=utf-8,'+encodeURIComponent(html(title,request.text,Boolean(request.compact),request.label || 'Work with Codex')));
+            window.setTitle(title);window.focus();
         }
         else if(request.op==='new')
             await create('AskBetter fixture 2',request.text);

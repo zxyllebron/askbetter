@@ -4,7 +4,8 @@ import time
 from dataclasses import dataclass
 from crossplatform.geometry import Rect, near_model, to_shell, anchor
 
-MODEL = re.compile(r"GPT.?[56]|select model|选择模型", re.I)
+MODEL = re.compile(r"GPT.?[56]|(?:select|choose)\s+(?:(?:chatgpt|codex)\s+)?model|"
+                   r"选择(?:\s*(?:chatgpt|codex))?\s*模型", re.I)
 APPLICATION = re.compile(r"^(codex|chatgpt)$", re.I)
 
 
@@ -197,6 +198,11 @@ class DesktopAccess:
         if abs(frame.height-client.height) < abs(frame.height-buffer.height):
             buffer = client
         model = to_shell(self._rectangle(target.model), frame, buffer)
+        editor = to_shell(self._rectangle(target.editor), frame, buffer)
+        if model.x >= editor.right and model.y < editor.bottom and model.bottom > editor.y:
+            # Compact ChatGPT puts the picker directly beside the text field.
+            # Its normal left anchor would cover text; place it above the field.
+            return Rect(model.x-gap-size, editor.y-gap-size, size, size)
         return anchor(model, size, gap)
 
     def unchanged(self, target, draft, context):

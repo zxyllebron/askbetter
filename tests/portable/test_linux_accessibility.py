@@ -4,7 +4,7 @@ import sys
 import unittest
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
-from linux.accessibility import DesktopAccess, Target
+from linux.accessibility import DesktopAccess, Target, MODEL
 from crossplatform.geometry import Rect
 
 class Link:
@@ -78,5 +78,53 @@ class FrameTests(unittest.TestCase):
   ctx=self.context(h=689);ctx['client']={'x':121,'y':125,'width':860,'height':651}
   with self.assertRaisesRegex(RuntimeError,'input box/model selector'): access.discover(ctx)
   self.assertIs(access.selected,frames[0])
+
+class ComposerNode(Node):
+ def __init__(self,role,name,rect):
+  super().__init__('draft');self.role=role;self.name=name;self.rect=rect;self.showing=True
+ def getRoleName(self): return self.role
+ def getState(self): return self
+ def contains(self,state): return self.role=='entry'
+
+class ComposerAccess(Access):
+ def __init__(self,nodes):
+  super().__init__([Frame(860,651)]);self.nodes=nodes
+  self.api=type('API',(),{'STATE_EDITABLE':'editable'})()
+ def _visible(self,node): return getattr(node,'showing',True)
+ def _nodes(self,node): return iter(self.nodes)
+
+class ChatLayoutTests(unittest.TestCase):
+ def context(self):
+  return {'pid':4379,'windowId':'5','title':'ChatGPT','buffer':{'x':0,'y':0,'width':860,'height':651}}
+ def test_generic_model_picker_labels(self):
+  for name in ('Select ChatGPT model','Choose Codex model','选择 ChatGPT 模型','Select model','GPT-6.1 Sol'):
+   self.assertIsNotNone(MODEL.search(name),name)
+ def test_compact_chatgpt_model_beside_editor(self):
+  editor=ComposerNode('entry','Ask ChatGPT',Rect(100,550,450,36))
+  model=ComposerNode('push button','Select ChatGPT model',Rect(554,554,140,28))
+  access=ComposerAccess([editor,model]);target=access.discover(self.context())
+  self.assertIs(target.editor,editor);self.assertIs(target.model,model)
+  position=access.position(target)
+  self.assertEqual(position,Rect(520,516,26,26))
+  self.assertLessEqual(position.bottom,editor.rect.y)
+ def test_expanded_composer_keeps_model_left_anchor(self):
+  editor=ComposerNode('entry','Work with Codex',Rect(100,480,700,70))
+  model=ComposerNode('push button','GPT-6.1 Sol',Rect(600,554,160,28))
+  access=ComposerAccess([editor,model]);target=access.discover(self.context())
+  self.assertEqual(access.position(target),Rect(566,555,26,26))
+ def test_switch_chat_in_same_window_retargets_editor(self):
+  old_editor=ComposerNode('entry','Work with Codex',Rect(100,480,700,70))
+  old_model=ComposerNode('push button','GPT-6.1 Sol',Rect(600,554,160,28))
+  access=ComposerAccess([old_editor,old_model]);first=access.discover(self.context())
+  old_editor.showing=old_model.showing=False
+  new_editor=ComposerNode('entry','Ask ChatGPT',Rect(100,550,450,36))
+  new_model=ComposerNode('push button','Select ChatGPT model',Rect(554,554,140,28))
+  access.nodes=[new_editor,new_model];second=access.discover(self.context())
+  self.assertIs(second.editor,new_editor);self.assertNotEqual(first.identity(),second.identity())
+ def test_distant_picker_is_not_associated_with_editor(self):
+  editor=ComposerNode('entry','Ask ChatGPT',Rect(100,550,450,36))
+  model=ComposerNode('push button','Select ChatGPT model',Rect(600,554,140,28))
+  with self.assertRaisesRegex(RuntimeError,'input box/model selector'):
+   ComposerAccess([editor,model]).discover(self.context())
 
 if __name__=='__main__': unittest.main()

@@ -22,8 +22,10 @@ class Rect:
 
 
 def near_model(editor, model):
+    horizontal = (model.x < editor.right and model.right > editor.x)
+    beside = (0 <= model.x-editor.right <= 32 and model.y < editor.bottom and model.bottom > editor.y)
     return (editor.valid() and model.valid() and editor.y - 8 <= model.y <= editor.bottom + 160
-            and model.x < editor.right and model.right > editor.x)
+            and (horizontal or beside))
 
 
 def anchor(model, size=26, gap=8):
