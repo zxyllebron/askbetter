@@ -29,6 +29,10 @@ export default class Driver extends Extension {
     }
     Action(action) {
         const extension=this._extension();
+        if (action === 'desktop') {
+            Main.overview.hide();
+            return;
+        }
         const window=global.display.focus_window;
         if (!window?.get_title()?.startsWith('AskBetter fixture'))
             throw new Error('Test driver only operates on its own fixture');

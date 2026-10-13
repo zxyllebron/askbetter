@@ -35,7 +35,13 @@ for extension_uuid in ('askbetter@zxyllebron.github.io','askbetter-tests@local')
     print('Enable',extension_uuid,extensions.EnableExtension(extension_uuid),flush=True)
 wait(lambda:bus.name_has_owner('org.askbetter.Tests'),'GNOME test extension enabled')
 driver=dbus.Interface(bus.get_object('org.askbetter.Tests','/org/askbetter/Tests'),'org.askbetter.Tests')
-wait(lambda:bus.name_has_owner('org.askbetter.Desktop'),'helper service started')
+try:
+    wait(lambda:bus.name_has_owner('org.askbetter.Desktop'),'helper service started')
+except Exception:
+    print('AskBetter extension:',extensions.GetExtensionInfo('askbetter@zxyllebron.github.io'),flush=True)
+    print('AskBetter errors:',extensions.GetExtensionErrors('askbetter@zxyllebron.github.io'),flush=True)
+    print('Driver state:',driver.State(),flush=True)
+    raise
 helper=dbus.Interface(bus.get_object('org.askbetter.Desktop','/org/askbetter/Desktop'),'org.askbetter.Desktop')
 fixture=subprocess.Popen(['/usr/bin/python3',str(ROOT/'tests/linux/fixture.py')],stdin=subprocess.PIPE,
     stdout=subprocess.PIPE,text=True,encoding='utf-8',env={**os.environ,'PYTHONIOENCODING':'utf-8'})
@@ -69,6 +75,7 @@ def state():
 
 checks=[]
 try:
+    driver.Action('desktop')
     wait(lambda:state().get('visible'),'circle appears on the fixture')
     current=state()
     assert current['size'] == 26, current
