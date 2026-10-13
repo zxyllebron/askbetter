@@ -12,7 +12,11 @@ const BUS = 'org.askbetter.Desktop';
 const PATH = '/org/askbetter/Desktop';
 
 export default class AskBetter extends Extension {
-    enable() {
+    async enable() {
+        if (this._stopPromise)
+            await this._stopPromise;
+        this._generation = (this._generation ?? 0)+1;
+        const generation = this._generation;
         this._enabled = true;
         this._quit = false;
         this._inflight = false;
@@ -23,7 +27,12 @@ export default class AskBetter extends Extension {
             accessible_name: '优化提示词', button_mask: St.ButtonMask.ONE,
             style: 'background-color:#303030;border:1px solid #484848;border-radius:13px;padding:0;min-width:0;min-height:0;'});
         this._icon = new St.Icon({gicon: new Gio.FileIcon({file: Gio.File.new_for_path(`${this.path}/wand.svg`)}), icon_size: 16});
-        this._button.set_child(this._icon);
+        this._content = new St.Widget({layout_manager: new Clutter.BinLayout(), width: 16, height: 16});
+        this._busyLabel = new St.Label({text: '…', x_align: Clutter.ActorAlign.CENTER, y_align: Clutter.ActorAlign.CENTER});
+        this._content.add_child(this._icon);
+        this._content.add_child(this._busyLabel);
+        this._busyLabel.hide();
+        this._button.set_child(this._content);
         this._button.set_size(26, 26);
         Main.layoutManager.addChrome(this._button, {affectsInputRegion: true, trackFullscreen: true});
         this._button.hide();
@@ -104,7 +113,7 @@ export default class AskBetter extends Extension {
             Gio.SubprocessFlags.STDOUT_SILENCE);
         Gio.DBusProxy.new_for_bus(Gio.BusType.SESSION, Gio.DBusProxyFlags.DO_NOT_AUTO_START, null,
             BUS, PATH, BUS, null, (_, result) => {
-                if (!this._enabled)
+                if (!this._enabled || this._generation !== generation)
                     return;
                 try {
                     this._proxy = Gio.DBusProxy.new_for_bus_finish(result);
@@ -126,9 +135,10 @@ export default class AskBetter extends Extension {
     _call(method, signature, arguments_, callback = null) {
         if (!this._proxy || !this._proxy.get_name_owner())
             return;
+        const generation = this._generation;
         this._proxy.call(method, new GLib.Variant(signature, arguments_), Gio.DBusCallFlags.NONE, 10000, null,
             (proxy, result) => {
-                if (!this._enabled)
+                if (!this._enabled || this._generation !== generation)
                     return;
                 try {
                     const values = proxy.call_finish(result).deep_unpack();
@@ -199,14 +209,8 @@ export default class AskBetter extends Extension {
                 }
                 for (const item of this._menu._getMenuItems())
                     item.setSensitive(!state.busy);
-                if (state.busy && !this._busyLabel) {
-                    this._busyLabel = new St.Label({text: '…'});
-                    this._button.set_child(this._busyLabel);
-                } else if (!state.busy && this._busyLabel) {
-                    this._button.set_child(this._icon);
-                    this._busyLabel.destroy();
-                    this._busyLabel = null;
-                }
+                this._busyLabel.set_visible(state.busy);
+                this._icon.set_visible(!state.busy);
                 const current = this._context();
                 if (state.visible && current.windowId === state.target && !this._moving &&
                     GLib.get_monotonic_time() >= this._hiddenUntil && !Main.overview.visible &&
@@ -227,9 +231,18 @@ export default class AskBetter extends Extension {
 
     disable() {
         this._call('Quit', '()', []);
-        if (this._helper)
-            this._helper.send_signal(15);
+        if (this._proxy && this._proxySignal)
+            this._proxy.disconnect(this._proxySignal);
+        if (this._helper) {
+            const child = this._helper;
+            child.send_signal(15);
+            this._stopPromise = new Promise(resolve => child.wait_async(null, (_, result) => {
+                try { child.wait_finish(result); } catch (_) { /* Already stopped. */ }
+                resolve();
+            }));
+        }
         this._enabled = false;
+        this._generation++;
         if (this._timer)
             GLib.source_remove(this._timer);
         if (this._window) {
