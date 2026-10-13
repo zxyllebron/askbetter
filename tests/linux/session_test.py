@@ -118,8 +118,10 @@ try:
         command('set',text=draft)
         driver.Action('click')
         wait(lambda:command('get')=='优化：'+draft,'one-click draft replacement')
+        wait(lambda:not json.loads(str(helper.Poll(json.dumps(state()['context']))))['busy'],'replacement verification completes')
         driver.Action('undo')
         wait(lambda:command('get')==draft,'undo replacement')
+        wait(lambda:not json.loads(str(helper.Poll(json.dumps(state()['context']))))['busy'],'undo verification completes')
         checks.append(style+' button -> fake Codex -> draft replacement -> undo')
 
     command('set',text='优化前的草稿')

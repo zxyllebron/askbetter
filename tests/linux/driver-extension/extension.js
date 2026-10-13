@@ -52,6 +52,7 @@ export default class Driver extends Extension {
         if (action === 'click')
             extension._button.emit('clicked',1);
         else if (action === 'resize') {
+            window.unmaximize(Meta.MaximizeFlags.BOTH);
             const rect=window.get_frame_rect();
             window.move_resize_frame(true,rect.x,rect.y,rect.width-100,rect.height-60);
         } else if (action === 'undo')

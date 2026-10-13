@@ -189,6 +189,9 @@ class Service(dbus.service.Object):
     def Commit(self, ticket, context):
         pending, self.pending = self.pending, None
         if not pending or pending[0] != ticket or time.monotonic()-pending[4] > 5:
+            if pending:
+                self.busy = False
+                self._status("回填请求已过期；原稿未覆盖")
             return False
         _, target, draft, result, _ = pending
         try:
@@ -214,6 +217,10 @@ class Service(dbus.service.Object):
     def PreparePaste(self, ticket, context):
         pending = self.paste_pending
         if not pending or pending[0] != ticket or time.monotonic()-pending[4] > 5:
+            if pending:
+                self.paste_pending = None
+                self.busy = False
+                self._status("回填请求已过期；原稿未覆盖")
             return ""
         try:
             self.access.prepare_paste(pending[1], pending[2], self._context(context))

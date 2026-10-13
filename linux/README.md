@@ -27,7 +27,9 @@ Defaults: GPT-6 Luna / Low / Fast / Moderate. Settings are in `${XDG_CONFIG_HOME
 
 `./run.sh` opens a standalone editing dialog. It can work even when the target desktop input box cannot be recognized, but it does not automatically replace the Codex draft.
 
-Automatic replacement requires the target input box's AT-SPI Text/EditableText interfaces. When those are unavailable, AskBetter preserves the draft and reports the error rather than guessing or sending keystrokes to another window. Wayland positioning uses GNOME window coordinates plus window-relative AT-SPI geometry, including when Codex itself runs through XWayland.
+Automatic replacement requires a readable AT-SPI Text interface. EditableText writes are preferred. For Chromium editors without EditableText, the helper verifies the draft, focuses and selects its text through AT-SPI, then the GNOME extension pastes using the compositor's virtual keyboard. It never presses Enter. The clipboard's preferred text or image format is restored if its contents have not changed; secondary clipboard formats are not retained by this fallback. If the editor cannot be read or safely selected, the draft is preserved.
+
+Positioning maps AT-SPI geometry onto GNOME's visible frame or client area, accounting for server-side decorations. This works without external applications reading Wayland's global window positions.
 
 Enable the system Accessibility toolkit support if the application is not visible to AT-SPI. Desktop-client updates, multi-monitor/fractional scaling, attachments, and input methods need real-client checks. Native Wayland in the upstream desktop app is still experimental.
 

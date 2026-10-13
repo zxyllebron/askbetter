@@ -215,7 +215,8 @@ export default class AskBetter extends Extension {
         this._window = global.display.focus_window;
         this._windowSignals = [];
         if (this._window) {
-            for (const event of ['position-changed', 'size-changed', 'notify::title'])
+            for (const event of ['position-changed', 'size-changed', 'notify::title',
+                'notify::maximized-horizontally', 'notify::maximized-vertically'])
                 this._windowSignals.push(this._window.connect(event, () => this._hideDuringLayout()));
         }
         this._hideDuringLayout();
