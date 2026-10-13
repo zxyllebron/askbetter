@@ -40,3 +40,5 @@ bash macos/build.sh
 ```
 
 Outputs are in `artifacts/macos/`. The build uses Swift/AppKit and a bundled Python helper. Apple Developer signing/notarization credentials are not included in this project.
+
+Bundled Python, OpenSSL, and the PyInstaller bootloader retain their upstream licenses; the ZIP includes these in `LICENSES/`.

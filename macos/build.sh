@@ -30,5 +30,7 @@ from pathlib import Path
 with zipfile.ZipFile(sys.argv[1],'a',compression=zipfile.ZIP_DEFLATED) as archive:
     archive.write(Path(sys.argv[2])/'macos/README.md','README-macOS.md')
     archive.write(Path(sys.argv[2])/'LICENSE','LICENSE')
+    for license_file in (Path(sys.argv[2])/'macos/licenses').glob('*.txt'):
+        archive.write(license_file,'LICENSES/'+license_file.name)
 PY
 echo "macOS package: $output/AskBetter-macOS-$arch.zip"
