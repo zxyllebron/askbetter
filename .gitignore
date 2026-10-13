@@ -22,6 +22,7 @@ dist/
 
 # Editors and OS
 .vs/
+.venv/
 .idea/
 .DS_Store
 Thumbs.db

@@ -7,7 +7,7 @@ class FakeCodex {
  static JavaScriptSerializer j=new JavaScriptSerializer();
  static Dictionary<string,object> threadSettings;
  static void Send(object x){Console.WriteLine(j.Serialize(x));}
- static int Main(){Console.InputEncoding=new UTF8Encoding(false);Console.OutputEncoding=new UTF8Encoding(false);string line;while((line=Console.ReadLine())!=null){var m=j.Deserialize<Dictionary<string,object>>(line);if(!m.ContainsKey("id"))continue;string method=(string)m["method"];var p=(Dictionary<string,object>)m["params"];
+ static int Main(){Console.SetIn(new StreamReader(Console.OpenStandardInput(),new UTF8Encoding(false,true),true));Console.SetOut(new StreamWriter(Console.OpenStandardOutput(),new UTF8Encoding(false)){AutoFlush=true});string line;while((line=Console.ReadLine())!=null){var m=j.Deserialize<Dictionary<string,object>>(line);if(!m.ContainsKey("id"))continue;string method=(string)m["method"];var p=(Dictionary<string,object>)m["params"];
  if(method=="initialize")Send(new {id=m["id"],result=new {userAgent="test"}});
  else if(method=="model/list"){if(Environment.GetEnvironmentVariable("ASKBETTER_FAKE_HANG_MODELS")=="1")continue;Send(new {id=m["id"],result=new {data=new[]{new {id="luna",model="gpt-6-luna"},new {id="sol",model="gpt-6.1-sol"}},nextCursor=(string)null}});}
  else if(method=="thread/start"){threadSettings=p;Send(new {id=m["id"],result=new {thread=new {id="test-thread"},model=p["model"],serviceTier=p["serviceTier"]}});}

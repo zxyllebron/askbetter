@@ -26,6 +26,9 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - name: Shared backend checks
         run: python3 -m unittest discover -s tests/portable -p 'test_*.py' -v
       - name: Native geometry checks
@@ -34,7 +37,7 @@ jobs:
           swiftc macos/Geometry.swift tests/portable/NativeGeometry.swift -o artifacts/tests/mac-geometry
           artifacts/tests/mac-geometry
       - name: Install build dependency
-        run: python3 -m pip install --user 'pyinstaller==6.16.0'
+        run: python3 -m pip install 'pyinstaller==6.16.0'
       - name: Build app and bundled runtime
         run: bash macos/build.sh
       - name: Verify bundle and startup diagnostic
@@ -45,6 +48,25 @@ jobs:
         with:
           name: AskBetter-${{ matrix.runner }}
           path: artifacts/macos/AskBetter-macOS-*.zip
+  linux-desktop:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        session: [x11, wayland]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Ubuntu desktop test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnome-shell gnome-shell-extension-prefs gjs xvfb xauth dbus-x11 python3-gi python3-pyatspi python3-dbus gir1.2-gtk-3.0 libglib2.0-bin
+      - name: GNOME circular button and real AT-SPI editor checks
+        run: dbus-run-session -- xvfb-run -a -s '-screen 0 1280x900x24' bash tests/linux/run_session.sh '${{ matrix.session }}'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Linux-desktop-${{ matrix.session }}-reports
+          path: artifacts/tests/
   windows:
     runs-on: windows-2022
     steps:

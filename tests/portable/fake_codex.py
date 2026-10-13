@@ -8,6 +8,7 @@ import time
 parser = argparse.ArgumentParser()
 parser.add_argument("--scenario", default="success")
 parser.add_argument("--record")
+parser.add_argument("--delay", type=float, default=0)
 arguments = parser.parse_args()
 threads = 0
 draft = ""
@@ -24,6 +25,8 @@ def reply(request, value):
 
 
 def finish():
+    if arguments.delay:
+        time.sleep(arguments.delay)
     if arguments.scenario == "timeout":
         time.sleep(10)
         return

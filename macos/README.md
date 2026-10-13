@@ -33,6 +33,8 @@ The original draft, window, and document are checked before replacement. Changed
 From the full source repository on the matching Mac architecture:
 
 ```sh
+python3 -m venv .venv
+source .venv/bin/activate
 python3 -m pip install 'pyinstaller==6.16.0'
 bash macos/build.sh
 ```
