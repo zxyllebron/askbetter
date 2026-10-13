@@ -50,7 +50,9 @@ fixture_environment={**os.environ,'PYTHONIOENCODING':'utf-8'}
 if kind.startswith('electron'):
     binary=str(ROOT/'artifacts/electron/node_modules/.bin/electron')
     command_line=[binary,str(ROOT/'tests/linux/electron-fixture.cjs'),'--class=Codex']
-    if kind == 'electron-xwayland':
+    if os.environ.get('ASKBETTER_TEST_NO_SANDBOX') == '1':
+        command_line.append('--no-sandbox')  # Local generated fixture only.
+    if kind in ('electron-xwayland', 'electron-rich'):
         shell_environment=json.loads(str(driver.State()))
         fixture_environment['DISPLAY']=shell_environment['xwaylandDisplay']
         fixture_environment['XAUTHORITY']=shell_environment['xwaylandAuthority']
@@ -124,6 +126,19 @@ try:
         driver.Action('ctrl-up')
     checks.append('Ctrl alone keeps the circular button visible')
     initial_clipboard_formats=state().get('clipboardFormats') or []
+
+    if os.environ.get('ASKBETTER_RICH_EDITOR') == '1':
+        draft='背景：Python 项目报错\n先检查日志和相关代码\n最后说明如何验证'
+        command('set',text=draft)
+        target=access.discover(state()['context'],fresh=True)
+        assert access.read(target)==draft,repr(access.read(target))
+        driver.Action('click')
+        wait(lambda:command('get')=='优化：'+draft,'multi-paragraph rich-editor replacement')
+        wait(lambda:not json.loads(str(helper.Poll(json.dumps(state()['context']))))['busy'],'rich-editor replacement verified')
+        driver.Action('undo')
+        wait(lambda:command('get')==draft,'multi-paragraph rich-editor undo')
+        wait(lambda:not json.loads(str(helper.Poll(json.dumps(state()['context']))))['busy'],'rich-editor undo verified')
+        checks.append('paragraph objects expand to actual text; multiline replacement and undo')
 
     for style in ('brief','moderate','detailed'):
         driver.Action(style)

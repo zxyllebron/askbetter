@@ -13,7 +13,7 @@ export XDG_DATA_HOME="$XDG_RUNTIME_DIR/data"
 export XDG_SESSION_TYPE="$session"
 export NO_AT_BRIDGE=0
 export GTK_MODULES=gail:atk-bridge
-export PYTHONPATH="$repo"
+export PYTHONPATH="$repo${PYTHONPATH:+:$PYTHONPATH}"
 if [[ "${ASKBETTER_SESSION_BUS:-}" != '1' ]]; then
     export ASKBETTER_SESSION_BUS=1
     # DConf and other D-Bus-activated services must inherit these same XDG paths

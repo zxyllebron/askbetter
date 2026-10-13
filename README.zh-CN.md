@@ -13,9 +13,11 @@ Windows 上的 Codex 桌面提示词优化助手。点击输入框模型选择�
 | Windows 10/11 | [Windows ZIP](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.1/AskBetter-Windows.zip) | 下方直接使用步骤 |
 | macOS 13+，Apple Silicon | [Mac arm64 ZIP](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.1/AskBetter-macOS-arm64.zip) | [Mac 说明](https://github.com/zxyllebron/askbetter/blob/main/macos/README.md) |
 | macOS 13+，Intel | [Mac x86_64 ZIP](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.1/AskBetter-macOS-x86_64.zip) | [Mac 说明](https://github.com/zxyllebron/askbetter/blob/main/macos/README.md) |
-| Ubuntu 24.04，GNOME 46 | [Ubuntu X11/Wayland 包](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.1/AskBetter-Ubuntu-24.04-GNOME.tar.gz) | [Ubuntu 说明](https://github.com/zxyllebron/askbetter/blob/main/linux/README.md) |
+| Ubuntu 24.04，GNOME 46 | [Ubuntu X11/Wayland 包](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.2/AskBetter-Ubuntu-24.04-GNOME.tar.gz) | [Ubuntu 说明](https://github.com/zxyllebron/askbetter/blob/main/linux/README.md) |
 
 Mac 和 Ubuntu 目前作为预览版发布。已完成的系统接口测试、模拟编辑器测试与尚需真实 Codex 客户端验证的项目，见[平台测试报告](https://github.com/zxyllebron/askbetter/blob/main/docs/platform-testing.md)。[Windows v1.0.0](https://github.com/zxyllebron/askbetter/releases/tag/v1.0.0) 仍可下载。
+
+Ubuntu 用户解压后运行一次 `./install.sh` 即可自动安装缺失依赖、寻找桌面应用自带的 Codex CLI、启用辅助功能并添加应用菜单入口，无需手填 CLI 路径。安装系统依赖时 Ubuntu 可能要求管理员密码。GNOME 首次加载新扩展需要注销再登录一次；在此之前，安装器会打开可立即使用的独立编辑窗口。直接下载仓库 ZIP 的用户可运行 `./linux/install.sh`。
 
 ## 功能
 

@@ -40,13 +40,66 @@ class DesktopAccess:
                 and not state.contains(self.api.STATE_DEFUNCT))
 
     def read(self, target):
-        text = target.editor.queryText()
-        return text.getText(0, text.characterCount)
+        return self._read_text(target.editor, set(), 0)
+
+    def _read_text(self, node, ancestors, depth):
+        if depth > 40 or hash(node) in ancestors:
+            raise RuntimeError("Cannot safely read the rich-text draft; original preserved")
+        attributes = node.get_attributes() if hasattr(node, "get_attributes") else {}
+        if attributes.get("tag", "").startswith("::"):
+            return ""  # Chromium exposes CSS placeholder text as an embedded object.
+        if attributes.get("tag") == "p" and "placeholder" in attributes.get("class", "").split():
+            return ""
+        text = node.queryText()
+        value = text.getText(0, text.characterCount)
+        if "\ufffc" not in value:
+            return self._without_trailing_break(node, attributes, value)
+        try:
+            hypertext = node.queryHypertext()
+        except NotImplementedError:
+            raise RuntimeError("Unreadable embedded object in draft; original preserved") from None
+        ancestors = ancestors | {hash(node)}
+        parts = []
+        for offset, character in enumerate(value):
+            if character != "\ufffc":
+                parts.append(character)
+                continue
+            index = hypertext.getLinkIndex(offset)
+            if index < 0:
+                raise RuntimeError("Unreadable embedded object in draft; original preserved")
+            link = hypertext.getLink(index)
+            child = link.getObject(0)
+            if child is None:
+                raise RuntimeError("Unreadable embedded object in draft; original preserved")
+            # Images/attachments have no text interface: refuse replacement rather
+            # than dropping their content or optimizing an object placeholder.
+            try:
+                parts.append(self._read_text(child, ancestors, depth+1))
+            except NotImplementedError:
+                raise RuntimeError("Draft contains a non-text object; original preserved") from None
+        if "ProseMirror" in attributes.get("class", "").split() and value and set(value) == {"\ufffc"}:
+            # Each embedded root object is a paragraph/block. Chromium omits
+            # paragraph separators from Hypertext; restore logical line breaks.
+            return "\n".join(parts)
+        return self._without_trailing_break(node, attributes, "".join(parts))
+
+    def _without_trailing_break(self, node, attributes, value):
+        if attributes.get("tag") == "p":
+            for i in range(getattr(node, "childCount", 0)):
+                child = node.getChildAtIndex(i)
+                if child is None:
+                    continue
+                attrs = child.get_attributes()
+                if "ProseMirror-trailingBreak" in attrs.get("class", "").split():
+                    return value.removesuffix("\n")
+        return value
 
     def _nodes(self, node):
         stack, seen = [node], set()
         while stack and len(seen) < 4000:
             current = stack.pop()
+            if current is None:
+                continue
             key = hash(current)
             if key in seen:
                 continue
@@ -87,6 +140,23 @@ class DesktopAccess:
         frames = [app.getChildAtIndex(i) for i in range(app.childCount)]
         frames = [node for node in frames if node.getRoleName() in ("frame", "window", "dialog")]
         frames = [node for node in frames if self._visible(node) and node.name == context["title"]]
+        if len(frames) > 1:
+            # Electron exposes hidden auxiliary windows with the same title and
+            # SHOWING state. Only accept a unique size match to GNOME's actual
+            # foreground window; never select a frame by its draft contents.
+            sizes = [context[key] for key in ("client", "buffer")
+                     if isinstance(context.get(key), dict)]
+            matches = []
+            for candidate in frames:
+                try:
+                    rect = self._rectangle(candidate)
+                    if any(size.get("width", 0) > 0 and size.get("height", 0) > 0
+                           and abs(rect.width-size["width"]) <= 2
+                           and abs(rect.height-size["height"]) <= 2 for size in sizes):
+                        matches.append(candidate)
+                except Exception:
+                    continue
+            frames = matches
         if len(frames) != 1:
             raise RuntimeError("Cannot uniquely identify the foreground Codex window")
         frame = frames[0]
@@ -111,8 +181,9 @@ class DesktopAccess:
             raise RuntimeError("Codex input box/model selector not exposed through AT-SPI")
         _, _, editor, model = max(choices, key=lambda value: value[:2])
         target = Target(app, frame, editor, model, dict(context))
-        # A readable text interface is required. Never guess using clipboard contents.
-        self.read(target)
+        # Check the interface here; reading/validating rich content happens when
+        # optimizing. A malformed draft must not make the button disappear.
+        target.editor.queryText()
         self.cached, self.last_discovery = target, time.monotonic()
         return target
 
