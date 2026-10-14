@@ -42,6 +42,9 @@ class WindowLifecycleTests {
   Desktop desktop=null;Window first=null,other=null,delayed=null;Dispatcher delayedDispatcher=null;Thread delayedThread=null;
   try {
    var app=new Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};
+   // The harness pumps frames instead of Application.Run; explicitly install
+   // the same UI context so async production callbacks resume on this thread.
+   SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(Dispatcher.CurrentDispatcher));
    desktop=new Desktop(new Settings{codexPath=args[1],timeoutSeconds=3});Field("scanning").SetValue(desktop,true);desktop.Show();Pump(50);
    first=new Window{Title="AskBetter lifecycle fixture",Width=360,Height=220,Left=80,Top=80};
    other=new Window{Title="AskBetter unrelated fixture",Width=340,Height=200,Left=480,Top=80};
