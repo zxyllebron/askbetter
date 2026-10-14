@@ -7,17 +7,29 @@ app.disableHardwareAcceleration();
 app.commandLine.appendSwitch('class', 'Codex');
 app.commandLine.appendSwitch('force-renderer-accessibility');
 const windows=[];
-function html(title,draft) {
+function html(title,draft,compact=false,editorLabel='Work with Codex') {
     const escaped=draft.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+    const rich=process.env.ASKBETTER_RICH_EDITOR === '1';
+    const markup=rich ? escaped.split('\n').map(text=>`<p>${text || '<br class="ProseMirror-trailingBreak">'}</p>`).join('') : escaped;
     return `<!doctype html><html><head><title>${title}</title><style>
       body {font:14px sans-serif;background:#191919;color:#eee;margin:20px;height:calc(100vh - 40px);display:flex;flex-direction:column;gap:12px}
       #editor {background:#343434;flex:1;white-space:pre-wrap;padding:12px;border:1px solid #555;overflow:auto}
       #toolbar {display:flex;gap:12px;justify-content:flex-end} button {padding:6px 12px}
-      </style></head><body><div>AskBetter CI — browser-backed editor fixture</div>
-      <div id="editor" contenteditable="plaintext-only" role="textbox" aria-label="Work with Codex" aria-multiline="true">${escaped}</div>
-      <div id="toolbar"><button id="model">GPT-6 Luna</button><button>Microphone</button><button id="send">Send</button></div>
+      body.compact #toolbar {gap:4px;align-items:center;margin-top:auto}
+      body.compact #editor {height:36px;min-width:0;box-sizing:border-box;padding:4px}
+      #editor p {margin:0}
+      #question {border:1px solid #555;border-radius:16px;padding:16px}
+      #question[hidden] {display:none}
+      #reply {display:block;width:95%;height:46px;margin:12px 0}
+      </style></head><body class="${compact ? 'compact' : ''}"><div>AskBetter CI — browser-backed editor fixture</div>
+      ${compact ? '<div style="flex:1">Compact ChatGPT chat</div>' : ''}
+      <div id="question" hidden>Question: provide more detail<textarea id="reply" aria-label="Reply...">Keep this reply unchanged</textarea><button>Skip</button><button id="reply-send">Send reply</button></div>
+      ${compact ? '<div id="toolbar"><button>Attach</button>' : ''}
+      <div id="editor" class="${rich ? 'ProseMirror' : ''}" contenteditable="${rich ? 'true' : 'plaintext-only'}" role="textbox" aria-label="${editorLabel}" aria-multiline="true">${markup}</div>
+      ${compact ? '' : '<div id="toolbar">'}<button id="model" ${compact ? 'aria-label="Select ChatGPT model"' : ''}>${compact ? 'Auto' : 'GPT-6 Luna'}</button><button>Microphone</button><button id="send">Send</button></div>
       <script>window.__askbetterSent=false;
       document.getElementById('send').onclick=()=>window.__askbetterSent=true;
+      document.getElementById('reply-send').onclick=()=>window.__askbetterSent=true;
       document.getElementById('editor').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){window.__askbetterSent=true;e.preventDefault();}};
       </script></body></html>`;
 }
@@ -38,10 +50,21 @@ app.whenReady().then(async()=>{
     for await (const line of incoming) {
         const request=JSON.parse(line), index=request.window ?? windows.length-1;
         const window=windows[index];
-        if(request.op==='set')
-            await window.webContents.executeJavaScript(`document.getElementById('editor').textContent=${JSON.stringify(request.text)};`);
+        if(request.op==='set') {
+            if(process.env.ASKBETTER_RICH_EDITOR === '1')
+                await window.webContents.executeJavaScript(`document.getElementById('editor').replaceChildren(...${JSON.stringify(request.text)}.split('\\n').map(text=>{const p=document.createElement('p');if(text)p.textContent=text;else{const br=document.createElement('br');br.className='ProseMirror-trailingBreak';p.append(br);}return p;}));`);
+            else
+                await window.webContents.executeJavaScript(`document.getElementById('editor').textContent=${JSON.stringify(request.text)};`);
+        }
+        else if(request.op==='chat') {
+            const title=window.getTitle();
+            await window.loadURL('data:text/html;charset=utf-8,'+encodeURIComponent(html(title,request.text,Boolean(request.compact),request.label || 'Work with Codex')));
+            window.setTitle(title);window.focus();
+        }
         else if(request.op==='new')
             await create('AskBetter fixture 2',request.text);
+        else if(request.op==='question')
+            await window.webContents.executeJavaScript(`document.getElementById('question').hidden=${!request.show};document.getElementById('toolbar').style.marginTop=${JSON.stringify(request.show ? '0' : '')};`);
         else if(request.op==='focus') {
             window.restore(); window.show(); window.focus();
         } else if(request.op==='minimize')
@@ -58,8 +81,11 @@ app.whenReady().then(async()=>{
             app.quit();
             break;
         }
-        const text=await window.webContents.executeJavaScript("document.getElementById('editor').innerText");
+        const text=await window.webContents.executeJavaScript(process.env.ASKBETTER_RICH_EDITOR === '1'
+            ? "(()=>{const e=document.getElementById('editor');if([...e.children].every(n=>n.tagName==='P')&&e.children.length)return [...e.children].map(n=>n.textContent).join('\\n');return e.innerText;})()"
+            : "document.getElementById('editor').innerText");
         const reply={id:request.id,text,sent:await window.webContents.executeJavaScript('window.__askbetterSent')};
+        if(request.op==='reply') reply.text=await window.webContents.executeJavaScript("document.getElementById('reply').value");
         if(request.op==='geometry')
             reply.geometry=await window.webContents.executeJavaScript(`(()=>{const r=document.getElementById('model').getBoundingClientRect(); const border=(outerWidth-innerWidth)/2; return {x:r.x+border,y:r.y+(outerHeight-innerHeight)-border,width:r.width,height:r.height,outerWidth,outerHeight};})()`);
         console.log(JSON.stringify(reply));

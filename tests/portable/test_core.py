@@ -53,7 +53,7 @@ class BackendTests(unittest.TestCase):
         self.assertTrue(any(value.get("id") == 900 and "error" in value for value in self.records()))
 
     def test_failures_preserve_no_result(self):
-        for scenario in ("empty","invalid","error","crash","wrongmodel","wrongtier"):
+        for scenario in ("empty","invalid","object","error","crash","wrongmodel","wrongtier"):
             with self.subTest(scenario=scenario):
                 with self.assertRaises(RuntimeError):
                     self.client(scenario).optimize("原稿",DEFAULTS)
@@ -70,7 +70,7 @@ class BackendTests(unittest.TestCase):
 
     def test_invalid_input(self):
         client=self.client()
-        for value in ("", "   ", None, "x"*100001):
+        for value in ("", "   ", None, "x"*100001, "\ufffc", "Some text \ufffc"):
             with self.assertRaises(ValueError):
                 client.optimize(value,DEFAULTS)
         self.assertIsNone(client.process)

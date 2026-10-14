@@ -68,7 +68,9 @@ def locate_codex(configured=""):
     if found:
         return found
     candidates = [Path.home() / ".local/bin/codex", Path.home() / ".npm-global/bin/codex",
-                  Path("/opt/homebrew/bin/codex"), Path("/usr/local/bin/codex")]
+                  Path("/opt/homebrew/bin/codex"), Path("/usr/local/bin/codex"),
+                  Path("/usr/lib/chatgpt/resources/codex"), Path("/usr/lib/codex/resources/codex"),
+                  Path("/opt/chatgpt/resources/codex"), Path("/opt/Codex/resources/codex")]
     for app in ("Codex", "ChatGPT"):
         for parent in (Path("/Applications"), Path.home() / "Applications"):
             candidates += [parent / (app + ".app") / "Contents/Resources" / name
@@ -174,6 +176,8 @@ class Backend:
     def optimize(self, draft, settings):
         if not isinstance(draft, str) or not draft.strip():
             raise ValueError("Enter a prompt to optimize")
+        if "\ufffc" in draft:
+            raise ValueError("Draft contains an unreadable object; original preserved")
         if len(draft) > 100000:
             raise ValueError("Draft exceeds 100,000 characters")
         settings = validate_settings(copy.deepcopy(settings))
@@ -225,6 +229,8 @@ class Backend:
                     raise RuntimeError("Codex returned an invalid optimization result; draft preserved") from None
                 if not isinstance(output, str) or not output.strip():
                     raise RuntimeError("Codex returned an empty optimization result; draft preserved")
+                if "\ufffc" in output:
+                    raise RuntimeError("Codex returned an object placeholder; draft preserved")
                 # This notification ends the subscription without delaying the completed result.
                 self.sequence += 1
                 self._send({"id": self.sequence, "method": "thread/unsubscribe", "params": {"threadId": thread_id}})

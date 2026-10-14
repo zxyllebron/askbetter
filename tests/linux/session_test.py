@@ -50,7 +50,9 @@ fixture_environment={**os.environ,'PYTHONIOENCODING':'utf-8'}
 if kind.startswith('electron'):
     binary=str(ROOT/'artifacts/electron/node_modules/.bin/electron')
     command_line=[binary,str(ROOT/'tests/linux/electron-fixture.cjs'),'--class=Codex']
-    if kind == 'electron-xwayland':
+    if os.environ.get('ASKBETTER_TEST_NO_SANDBOX') == '1':
+        command_line.append('--no-sandbox')  # Local generated fixture only.
+    if kind in ('electron-xwayland', 'electron-rich'):
         shell_environment=json.loads(str(driver.State()))
         fixture_environment['DISPLAY']=shell_environment['xwaylandDisplay']
         fixture_environment['XAUTHORITY']=shell_environment['xwaylandAuthority']
@@ -124,6 +126,78 @@ try:
         driver.Action('ctrl-up')
     checks.append('Ctrl alone keeps the circular button visible')
     initial_clipboard_formats=state().get('clipboardFormats') or []
+
+    if os.environ.get('ASKBETTER_RICH_EDITOR') == '1':
+        draft='背景：Python 项目报错\n先检查日志和相关代码\n最后说明如何验证'
+        command('set',text=draft)
+        target=access.discover(state()['context'],fresh=True)
+        assert access.read(target)==draft,repr(access.read(target))
+        driver.Action('click')
+        wait(lambda:command('get')=='优化：'+draft,'multi-paragraph rich-editor replacement')
+        wait(lambda:not json.loads(str(helper.Poll(json.dumps(state()['context']))))['busy'],'rich-editor replacement verified')
+        driver.Action('undo')
+        wait(lambda:command('get')==draft,'multi-paragraph rich-editor undo')
+        wait(lambda:not json.loads(str(helper.Poll(json.dumps(state()['context']))))['busy'],'rich-editor undo verified')
+        checks.append('paragraph objects expand to actual text; multiline replacement and undo')
+
+        # These are different chats in one native window; PID/title/window ID stay
+        # unchanged, while editor identity, model label and composer layout vary.
+        for label,compact in (('Ask ChatGPT',True),('Work with ChatGPT',False),('Work with Codex',False)):
+            draft='切换聊天：'+label
+            command('chat',text=draft,compact=compact,label=label)
+            wait(lambda:access.read(access.discover(state()['context'],fresh=True))==draft,'new chat accessible draft loaded')
+            wait(lambda:state().get('visible'),'circle follows '+label)
+            target=access.discover(state()['context'],fresh=True)
+            assert target.editor.name==label,target.editor.name
+            if compact:
+                position=access.position(target)
+                editor=access._rectangle(target.editor)
+                client=state()['context']['client']
+                assert position.y+position.height<=client['y']+editor.y,'circle overlaps compact editor'
+            driver.Action('click')
+            wait(lambda:command('get')=='优化：'+draft,'replacement in '+label)
+            wait(lambda:not json.loads(str(helper.Poll(json.dumps(state()['context']))))['busy'],'replacement verified in '+label)
+            driver.Action('undo')
+            wait(lambda:command('get')==draft,'undo in '+label)
+            wait(lambda:not json.loads(str(helper.Poll(json.dumps(state()['context']))))['busy'],'undo verified in '+label)
+            checks.append('same-window '+label+' circle -> replacement -> undo')
+
+        # Opening a question adds a second editable control but retains the same
+        # main editor. The circle must stay in the main row, away from the card.
+        draft='主输入框草稿'
+        command('chat',text=draft,compact=True,label='Work with ChatGPT')
+        wait(lambda:access.discover(state()['context'],fresh=True).editor.name=='Work with ChatGPT','question fixture composer loaded')
+        command('question',show=True)
+        target=wait(lambda:(t if t.has_reply else None) if (t:=access.discover(state()['context'],fresh=True)) else None,'question reply exposed')
+        expected=access.position(target)
+        wait(lambda:state().get('visible') and abs(state()['y']-expected.y)<1,'circle docks beside main picker with a question open')
+        editor=access._rectangle(target.editor)
+        assert expected.y>=state()['context']['client']['y']+editor.y,'circle floated into question card'
+        driver.Action('click')
+        wait(lambda:command('get')=='优化：'+draft,'question-open main draft replacement')
+        wait(lambda:not json.loads(str(helper.Poll(json.dumps(state()['context']))))['busy'],'question-open replacement verified')
+        assert command('reply')=='Keep this reply unchanged','question reply overwritten'
+        driver.Action('undo')
+        wait(lambda:command('get')==draft,'question-open main draft undo')
+        wait(lambda:not json.loads(str(helper.Poll(json.dumps(state()['context']))))['busy'],'question-open undo verified')
+        command('question',show=False)
+        target=wait(lambda:(t if not t.has_reply else None) if (t:=access.discover(state()['context'],fresh=True)) else None,'question closed')
+        expected=access.position(target)
+        wait(lambda:state().get('visible') and abs(state()['y']-expected.y)<1,'circle returns after question closes')
+        checks.append('question opens/closes: main-row circle, main draft replacement/undo, reply untouched')
+
+        draft='相同草稿，切换同一窗口的聊天'
+        command('set',text=draft)
+        driver.Action('click')
+        wait(lambda:json.loads(str(helper.Poll(json.dumps(state()['context']))))['busy'],'optimization starts before chat switch')
+        command('chat',text=draft,compact=True,label='Ask ChatGPT')
+        wait(lambda:not json.loads(str(helper.Poll(json.dumps(state()['context']))))['busy'],'same-window chat switch rejected')
+        assert command('get')==draft,'result overwrote a different chat'
+        checks.append('same text in another chat of the same window is not overwritten')
+        command('chat',text=draft,compact=False,label='Work with Codex')
+        wait(lambda:access.discover(state()['context'],fresh=True).editor.name=='Work with Codex','expanded editor accessible after chat switch')
+        wait(lambda:state().get('visible'),'circle returns to expanded composer')
+        time.sleep(1.2)  # Allow the helper's previous per-frame cache to expire.
 
     for style in ('brief','moderate','detailed'):
         driver.Action(style)
@@ -214,6 +288,11 @@ finally:
             debug=state()
             print('Failure state:',json.dumps(debug,ensure_ascii=False),flush=True)
             print('Failure service state:',helper.Poll(json.dumps(debug.get('context',{}))),flush=True)
+            try:
+                target=access.discover(debug['context'],fresh=True)
+                print('Failure current editor:',target.editor.name,'draft:',repr(access.read(target)),flush=True)
+            except Exception as error:
+                print('Failure editor diagnostic:',str(error),flush=True)
         except Exception as error:
             print('State diagnostic failed:',str(error),flush=True)
     try:

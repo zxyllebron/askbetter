@@ -4,8 +4,11 @@ import time
 from dataclasses import dataclass
 from crossplatform.geometry import Rect, near_model, to_shell, anchor
 
-MODEL = re.compile(r"GPT.?[56]|select model|选择模型", re.I)
+MODEL = re.compile(r"GPT.?[56]|(?:select|choose)\s+(?:(?:chatgpt|codex)\s+)?model|"
+                   r"选择(?:\s*(?:chatgpt|codex))?\s*模型", re.I)
 APPLICATION = re.compile(r"^(codex|chatgpt)$", re.I)
+COMPOSER = re.compile(r"^(?:Work with (?:Codex|ChatGPT)|Ask (?:Codex|ChatGPT))$", re.I)
+REPLY = re.compile(r"^(?:Reply(?:\.{3}|…)?|Or write your own response|回复(?:\.{3}|…)?|或自行填写回复)$", re.I)
 
 
 @dataclass
@@ -15,6 +18,7 @@ class Target:
     editor: object
     model: object
     context: dict
+    has_reply: bool = False
 
     def identity(self):
         return (self.context["pid"], self.context["windowId"], self.context["title"],
@@ -40,13 +44,66 @@ class DesktopAccess:
                 and not state.contains(self.api.STATE_DEFUNCT))
 
     def read(self, target):
-        text = target.editor.queryText()
-        return text.getText(0, text.characterCount)
+        return self._read_text(target.editor, set(), 0)
+
+    def _read_text(self, node, ancestors, depth):
+        if depth > 40 or hash(node) in ancestors:
+            raise RuntimeError("Cannot safely read the rich-text draft; original preserved")
+        attributes = node.get_attributes() if hasattr(node, "get_attributes") else {}
+        if attributes.get("tag", "").startswith("::"):
+            return ""  # Chromium exposes CSS placeholder text as an embedded object.
+        if attributes.get("tag") == "p" and "placeholder" in attributes.get("class", "").split():
+            return ""
+        text = node.queryText()
+        value = text.getText(0, text.characterCount)
+        if "\ufffc" not in value:
+            return self._without_trailing_break(node, attributes, value)
+        try:
+            hypertext = node.queryHypertext()
+        except NotImplementedError:
+            raise RuntimeError("Unreadable embedded object in draft; original preserved") from None
+        ancestors = ancestors | {hash(node)}
+        parts = []
+        for offset, character in enumerate(value):
+            if character != "\ufffc":
+                parts.append(character)
+                continue
+            index = hypertext.getLinkIndex(offset)
+            if index < 0:
+                raise RuntimeError("Unreadable embedded object in draft; original preserved")
+            link = hypertext.getLink(index)
+            child = link.getObject(0)
+            if child is None:
+                raise RuntimeError("Unreadable embedded object in draft; original preserved")
+            # Images/attachments have no text interface: refuse replacement rather
+            # than dropping their content or optimizing an object placeholder.
+            try:
+                parts.append(self._read_text(child, ancestors, depth+1))
+            except NotImplementedError:
+                raise RuntimeError("Draft contains a non-text object; original preserved") from None
+        if "ProseMirror" in attributes.get("class", "").split() and value and set(value) == {"\ufffc"}:
+            # Each embedded root object is a paragraph/block. Chromium omits
+            # paragraph separators from Hypertext; restore logical line breaks.
+            return "\n".join(parts)
+        return self._without_trailing_break(node, attributes, "".join(parts))
+
+    def _without_trailing_break(self, node, attributes, value):
+        if attributes.get("tag") == "p":
+            for i in range(getattr(node, "childCount", 0)):
+                child = node.getChildAtIndex(i)
+                if child is None:
+                    continue
+                attrs = child.get_attributes()
+                if "ProseMirror-trailingBreak" in attrs.get("class", "").split():
+                    return value.removesuffix("\n")
+        return value
 
     def _nodes(self, node):
         stack, seen = [node], set()
         while stack and len(seen) < 4000:
             current = stack.pop()
+            if current is None:
+                continue
             key = hash(current)
             if key in seen:
                 continue
@@ -87,6 +144,23 @@ class DesktopAccess:
         frames = [app.getChildAtIndex(i) for i in range(app.childCount)]
         frames = [node for node in frames if node.getRoleName() in ("frame", "window", "dialog")]
         frames = [node for node in frames if self._visible(node) and node.name == context["title"]]
+        if len(frames) > 1:
+            # Electron exposes hidden auxiliary windows with the same title and
+            # SHOWING state. Only accept a unique size match to GNOME's actual
+            # foreground window; never select a frame by its draft contents.
+            sizes = [context[key] for key in ("client", "buffer")
+                     if isinstance(context.get(key), dict)]
+            matches = []
+            for candidate in frames:
+                try:
+                    rect = self._rectangle(candidate)
+                    if any(size.get("width", 0) > 0 and size.get("height", 0) > 0
+                           and abs(rect.width-size["width"]) <= 2
+                           and abs(rect.height-size["height"]) <= 2 for size in sizes):
+                        matches.append(candidate)
+                except Exception:
+                    continue
+            frames = matches
         if len(frames) != 1:
             raise RuntimeError("Cannot uniquely identify the foreground Codex window")
         frame = frames[0]
@@ -104,15 +178,23 @@ class DesktopAccess:
                     editors.append((node, rect))
             except Exception:
                 continue
-        choices = [(model_rect.bottom, -abs(model_rect.y-editor_rect.bottom), editor, model)
+        choices = [(bool(COMPOSER.fullmatch(editor.name or "")), model_rect.bottom,
+                    -abs(model_rect.y-editor_rect.bottom), editor, model)
                    for editor, editor_rect in editors for model, model_rect in models
-                   if near_model(editor_rect, model_rect)]
+                   if not REPLY.fullmatch(editor.name or "") and near_model(editor_rect, model_rect)]
         if not choices:
             raise RuntimeError("Codex input box/model selector not exposed through AT-SPI")
-        _, _, editor, model = max(choices, key=lambda value: value[:2])
-        target = Target(app, frame, editor, model, dict(context))
-        # A readable text interface is required. Never guess using clipboard contents.
-        self.read(target)
+        _, _, _, editor, model = max(choices, key=lambda value: value[:3])
+        editor_rect = self._rectangle(editor)
+        has_reply = any(node != editor and (REPLY.fullmatch(node.name or "") or
+                        (COMPOSER.fullmatch(editor.name or "") and rect.valid() and
+                         0 <= editor_rect.y-rect.bottom <= 160 and
+                         rect.x < editor_rect.right and rect.right > editor_rect.x))
+                        for node, rect in editors)
+        target = Target(app, frame, editor, model, dict(context), has_reply)
+        # Check the interface here; reading/validating rich content happens when
+        # optimizing. A malformed draft must not make the button disappear.
+        target.editor.queryText()
         self.cached, self.last_discovery = target, time.monotonic()
         return target
 
@@ -126,6 +208,16 @@ class DesktopAccess:
         if abs(frame.height-client.height) < abs(frame.height-buffer.height):
             buffer = client
         model = to_shell(self._rectangle(target.model), frame, buffer)
+        editor = to_shell(self._rectangle(target.editor), frame, buffer)
+        if model.x >= editor.right and model.y < editor.bottom and model.bottom > editor.y:
+            if target.has_reply:
+                # A question card collapses the main composer to one row. Its
+                # upper edge touches the card: keep the wand in the composer
+                # beside its model picker, never float it into the reply card.
+                return anchor(model, size, gap)
+            # Compact ChatGPT puts the picker directly beside the text field.
+            # Its normal left anchor would cover text; place it above the field.
+            return Rect(model.x-gap-size, editor.y-gap-size, size, size)
         return anchor(model, size, gap)
 
     def unchanged(self, target, draft, context):
