@@ -69,7 +69,8 @@ class WindowLifecycleTests {
    Field("owner").SetValue(desktop,delayedHandle);Pump(400);desktop.Show();Pump(20);
    var locate=Task.Run(()=>AutomationElement.FromHandle(delayedHandle).FindFirst(TreeScope.Descendants,new PropertyCondition(AutomationElement.AutomationIdProperty,"DelayedEditor")));
    Wait(()=>locate.IsCompleted,"slow editor accessible");var editor=locate.GetAwaiter().GetResult();Require(editor!=null,"native delayed editor recognized");
-   Field("editor").SetValue(desktop,editor);var identify=Task.Run(()=>editor.GetRuntimeId());Wait(()=>identify.IsCompleted,"editor identity");Field("editorId").SetValue(desktop,identify.Result);Field("ownerTitle").SetValue(desktop,"AskBetter slow-provider fixture|");
+   Field("editor").SetValue(desktop,editor);var identify=Task.Run(()=>editor.GetRuntimeId());Wait(()=>identify.IsCompleted,"editor identity");Field("editorId").SetValue(desktop,identify.Result);
+   var contextTitle=Task.Run(()=>(string)typeof(Desktop).GetMethod("ContextTitle",BindingFlags.NonPublic|BindingFlags.Static).Invoke(null,new object[]{AutomationElement.FromHandle(delayedHandle)}));Wait(()=>contextTitle.IsCompleted,"fixture context title");Field("ownerTitle").SetValue(desktop,contextTitle.Result);
    Task request=null;
    HideCheck(desktop,"delayed editor read",()=>{request=(Task)Call(desktop,"Run");other.Activate();});
    Wait(()=>request.IsCompleted,"background request resolves",7000);request.GetAwaiter().GetResult();
@@ -78,7 +79,7 @@ class WindowLifecycleTests {
    Require(Field("undoEditor").GetValue(desktop)==null,"failed replacement does not record undo");
    delayedDispatcher.Invoke(()=>delayed.Activate());Wait(()=>GetForegroundWindow()==delayedHandle,"foreground replacement target");Pump(400);
    request=(Task)Call(desktop,"Run");Wait(()=>request.IsCompleted,"foreground value replacement",12000);request.GetAwaiter().GetResult();
-   Require(delayedDispatcher.Invoke(()=>delayedInput.Text)=="优化：Draft IMU / UDP","real ValuePattern write succeeds from the worker");
+   Require(delayedDispatcher.Invoke(()=>delayedInput.Text)=="优化：Draft IMU / UDP","real ValuePattern write succeeds from the worker; status="+((TextBlock)Field("panelStatus").GetValue(desktop)).Text+"; owner="+Field("owner").GetValue(desktop)+"; foreground="+GetForegroundWindow());
    Require(Field("undoEditor").GetValue(desktop)==editor,"successful replacement records undo");
    delayedDispatcher.Invoke(()=>{delayedInput.Text="Write rejected draft";delayedInput.RejectWrites=true;});
    request=(Task)Call(desktop,"Run");Wait(()=>request.IsCompleted,"rejected provider write",12000);request.GetAwaiter().GetResult();
