@@ -475,7 +475,8 @@ if let probe=CommandLine.arguments.firstIndex(of:"--window-lifecycle-probe"), Co
         guard attempts<100 else { print("Native fixture focus timeout"); exit(1) }
         guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else { return }
         do {
-            let target=try access.discover(pid:pid,fresh:true)
+            // Foreground activation can precede the fixture's AX registration.
+            guard let target=try? access.discover(pid:pid,fresh:true) else { return }
             let draft=try target.read()
             guard draft == "原稿：IMU、UDP 与机械臂。" else { throw ABError.message("Fixture draft mismatch") }
             timer?.invalidate()

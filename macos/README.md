@@ -12,6 +12,8 @@ This is a preview port. The build is locally ad-hoc signed, not Apple-notarized.
 
 Keep the app in the same location after granting permission; changing its location or build may require macOS to authorize it again.
 
+To update, quit AskBetter from its menu-bar menu, replace the old app with the new download, and reopen it. Closing, hiding, or minimizing Codex hides the circle without waiting for editor discovery.
+
 ## Controls
 
 The button matches Windows: 26 × 26 logical pixels, 16 × 16 wand, and an 8-pixel gap to the model selector. It hides during zooming/resizing and returns when the layout settles. Right-click for Brief, Moderate, Detailed, Standalone dialog, and Change model. The interface currently uses the Windows Chinese labels.

@@ -10,10 +10,10 @@ Windows 上的 Codex 桌面提示词优化助手。点击输入框模型选择�
 
 | 平台 | 下载 | 使用说明 |
 | --- | --- | --- |
-| Windows 10/11 | [Windows ZIP](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.1/AskBetter-Windows.zip) | 下方直接使用步骤 |
-| macOS 13+，Apple Silicon | [Mac arm64 ZIP](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.1/AskBetter-macOS-arm64.zip) | [Mac 说明](https://github.com/zxyllebron/askbetter/blob/main/macos/README.md) |
-| macOS 13+，Intel | [Mac x86_64 ZIP](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.1/AskBetter-macOS-x86_64.zip) | [Mac 说明](https://github.com/zxyllebron/askbetter/blob/main/macos/README.md) |
-| Ubuntu 24.04，GNOME 46 | [Ubuntu X11/Wayland 包](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.1/AskBetter-Ubuntu-24.04-GNOME.tar.gz) | [Ubuntu 说明](https://github.com/zxyllebron/askbetter/blob/main/linux/README.md) |
+| Windows 10/11 | [Windows ZIP](https://github.com/zxyllebron/askbetter/releases/download/v1.0.1/AskBetter-Windows.zip) | 下方直接使用步骤 |
+| macOS 13+，Apple Silicon | [Mac arm64 ZIP](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.2/AskBetter-macOS-arm64.zip) | [Mac 说明](https://github.com/zxyllebron/askbetter/blob/main/macos/README.md) |
+| macOS 13+，Intel | [Mac x86_64 ZIP](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.2/AskBetter-macOS-x86_64.zip) | [Mac 说明](https://github.com/zxyllebron/askbetter/blob/main/macos/README.md) |
+| Ubuntu 24.04，GNOME 46 | [Ubuntu X11/Wayland 包](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.2/AskBetter-Ubuntu-24.04-GNOME.tar.gz) | [Ubuntu 说明](https://github.com/zxyllebron/askbetter/blob/main/linux/README.md) |
 
 Mac 和 Ubuntu 目前作为预览版发布。已完成的系统接口测试、模拟编辑器测试与尚需真实 Codex 客户端验证的项目，见[平台测试报告](https://github.com/zxyllebron/askbetter/blob/main/docs/platform-testing.md)。[Windows v1.0.0](https://github.com/zxyllebron/askbetter/releases/tag/v1.0.0) 仍可下载。
 
@@ -23,6 +23,7 @@ Mac 和 Ubuntu 目前作为预览版发布。已完成的系统接口测试、�
 - 简短、适中、详细三档独立优化指令；只改写草稿，不执行草稿里的任务。
 - 回填草稿，不自动发送；支持撤销上次回填。
 - 切换聊天时重新识别输入框；实际缩放时隐藏圆钮，稳定后恢复。单按 Ctrl 不隐藏。
+- 关闭、最小化、隐藏或切走目标窗口时，圆钮及时隐藏，无需等待输入框扫描；不回填到后台旧窗口。
 - 单独对话框模式：Enter 优化，Shift+Enter 换行，输出可选中复制。
 - 可更改优化模型；复用本机 Codex 登录，无需在项目中填写 API Key。
 
@@ -35,6 +36,8 @@ Mac 和 Ubuntu 目前作为预览版发布。已完成的系统接口测试、�
 Windows 10/11 64 位、.NET Framework 4.8、Codex 桌面应用，以及已安装并登录的 Codex CLI。需要网络和所选模型、Low 推理与 Fast 的使用权限。
 
 本节介绍 Windows 版本，依赖 Windows UI Automation，只支持可识别的本机 Codex/ChatGPT 桌面输入框。Mac 和 Ubuntu 使用上方独立版本；网页和 IDE 输入框不在桌面适配范围内。纯 Agent Skill 可以单独使用。
+
+更新 Windows：按 Ctrl+Alt+Q 退出助手，用新包替换程序文件，保留本地 `settings.json`，再启动 `AskBetter.exe`。Mac 需退出并替换应用后重新打开；Ubuntu 覆盖安装后需注销并重新登录桌面。
 
 ### 启动
 

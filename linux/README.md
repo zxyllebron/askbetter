@@ -19,6 +19,10 @@ Click the 26-pixel wand button to optimize and replace the current draft without
 
 The button hides while resizing or zooming, then returns after the layout settles. Pressing Ctrl alone does not hide it. Draft changes or a different window prevent replacement; the completed result can be viewed in the standalone dialog.
 
+Closing, hiding, or minimizing the target window removes its circle and menu without waiting for backend polling. Restoring the window reattaches the circle after the layout settles.
+
+To update an existing installation, extract the new package and run its installer again. Log out and back in once afterward: GNOME keeps extension modules and the helper loaded in the current session.
+
 Ctrl+Alt+Z undoes the last replacement; Ctrl+Alt+Q stops the helper until the extension is restarted. Use the GNOME Extensions app to disable/re-enable AskBetter. In the standalone dialog, Enter optimizes and Shift+Enter inserts a new line. Its Settings menu has the same five options, with Return to circular-button mode as item 4.
 
 ## Configuration and troubleshooting

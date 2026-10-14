@@ -17,6 +17,8 @@ if [ "$major" != '46' ]; then
     echo 'This package targets GNOME 46 on Ubuntu 24.04.' >&2; exit 1
 fi
 destination="${XDG_DATA_HOME:-$HOME/.local/share}/gnome-shell/extensions/$uuid"
+updating=0
+if [ -f "$destination/metadata.json" ]; then updating=1; fi
 mkdir -p "$destination"
 cp -R "$root/extension/." "$destination/"
 glib-compile-schemas "$destination/schemas"
@@ -32,7 +34,9 @@ if sys.argv[1] not in enabled:
     settings.set_strv('enabled-extensions',enabled+[sys.argv[1]])
 Gio.Settings.sync()
 PY
-if gnome-extensions enable "$uuid" 2>/dev/null; then
+if [ "$updating" -eq 1 ]; then
+    echo 'Update installed. Log out and back in once to reload the extension and helper.'
+elif gnome-extensions enable "$uuid" 2>/dev/null; then
     echo 'AskBetter enabled. Return to Codex and click its circular button.'
 else
     echo 'Installed. Log out and back in once so GNOME can load the new extension.'

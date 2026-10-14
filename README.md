@@ -12,10 +12,10 @@ Each platform has its own download path. The Ubuntu package targets GNOME 46 in 
 
 | Platform | Download | Setup guide |
 | --- | --- | --- |
-| Windows 10/11 | [Windows ZIP](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.1/AskBetter-Windows.zip) | [Quick start below](#windows-quick-start) |
-| macOS 13+, Apple Silicon | [macOS arm64 ZIP](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.1/AskBetter-macOS-arm64.zip) | [macOS guide](https://github.com/zxyllebron/askbetter/blob/main/macos/README.md) |
-| macOS 13+, Intel | [macOS x86_64 ZIP](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.1/AskBetter-macOS-x86_64.zip) | [macOS guide](https://github.com/zxyllebron/askbetter/blob/main/macos/README.md) |
-| Ubuntu 24.04, GNOME 46 | [Ubuntu X11/Wayland package](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.1/AskBetter-Ubuntu-24.04-GNOME.tar.gz) | [Ubuntu guide](https://github.com/zxyllebron/askbetter/blob/main/linux/README.md) |
+| Windows 10/11 | [Windows ZIP](https://github.com/zxyllebron/askbetter/releases/download/v1.0.1/AskBetter-Windows.zip) | [Quick start below](#windows-quick-start) |
+| macOS 13+, Apple Silicon | [macOS arm64 ZIP](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.2/AskBetter-macOS-arm64.zip) | [macOS guide](https://github.com/zxyllebron/askbetter/blob/main/macos/README.md) |
+| macOS 13+, Intel | [macOS x86_64 ZIP](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.2/AskBetter-macOS-x86_64.zip) | [macOS guide](https://github.com/zxyllebron/askbetter/blob/main/macos/README.md) |
+| Ubuntu 24.04, GNOME 46 | [Ubuntu X11/Wayland package](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.2/AskBetter-Ubuntu-24.04-GNOME.tar.gz) | [Ubuntu guide](https://github.com/zxyllebron/askbetter/blob/main/linux/README.md) |
 
 The new ports are preview builds. Review the [platform test report](https://github.com/zxyllebron/askbetter/blob/main/docs/platform-testing.md) for the distinction between real OS integration tests, editor fixtures, and signed-in Codex-client validation. The existing [Windows v1.0.0 release](https://github.com/zxyllebron/askbetter/releases/tag/v1.0.0) remains available.
 
@@ -26,6 +26,7 @@ The new ports are preview builds. Review the [platform test report](https://gith
 - Replaces your draft without sending it. Supports undoing the last replacement.
 - A 26 × 26 logical-pixel circular button with a wand icon, positioned to the left of the model selector.
 - Hides during zooming or resizing and reappears when the layout settles. Pressing Ctrl alone does not hide it.
+- Hides when the target window closes, minimizes, is hidden, or loses focus, independently of editor discovery. Background windows are not overwritten.
 - Standalone dialog with Enter to optimize and Shift+Enter for a new line.
 - Configurable optimization model, using your local Codex login without a separate API key.
 
@@ -40,6 +41,8 @@ The desktop interface and bundled optimization instructions currently use Chines
 Windows 10/11 (64-bit), .NET Framework 4.8, the Codex desktop app, and an installed, signed-in Codex CLI. An internet connection and access to the selected model, Low reasoning, and Fast mode are required.
 
 The Windows executable uses Windows UI Automation and requires a recognizable local Codex/ChatGPT desktop input box. Use the separate packages above on Mac or Ubuntu. Browser and IDE input boxes are outside the scope of these desktop adapters. The Agent Skill can be used separately in compatible clients.
+
+To update Windows, quit AskBetter with Ctrl+Alt+Q, replace the app files from the new package while retaining your local `settings.json`, and restart `AskBetter.exe`. Mac and Ubuntu update steps are in their platform guides.
 
 ### Run
 

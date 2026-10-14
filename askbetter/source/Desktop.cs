@@ -34,7 +34,7 @@ public sealed partial class Desktop : Window {
  DateTime lastDiscovery=DateTime.MinValue;
  Rect lastAnchor=Rect.Empty;
  IntPtr overlayHandle;
- bool closing;
+ volatile bool closing;
  DispatcherTimer trackingTimer;
  public Desktop(Settings s) {
   settings=s;backend=new Backend(s);
@@ -97,22 +97,31 @@ public sealed partial class Desktop : Window {
  bool Unchanged(AutomationElement e,IntPtr h,int[] id,string expected,string title){try{return !closing&&OwnerActive(h)&&IsCodex(h)&&Same(e,id)&&!e.Current.IsOffscreen&&ContextTitle(AutomationElement.FromHandle(h))==title&&Read(e)==expected;}catch{return false;}}
  static void Chord(byte key){keybd_event(0x11,0,0,UIntPtr.Zero);keybd_event(key,0,0,UIntPtr.Zero);keybd_event(key,0,2,UIntPtr.Zero);keybd_event(0x11,0,2,UIntPtr.Zero);}
  async Task Replace(AutomationElement e,IntPtr h,int[] id,string expected,string result,string title){
-  if(!Unchanged(e,h,id,expected,title))throw new Exception("输入框或草稿已变动，结果保留在面板中，未覆盖。");
-  object p;if(e.TryGetCurrentPattern(ValuePattern.Pattern,out p)&&!((ValuePattern)p).Current.IsReadOnly){((ValuePattern)p).SetValue(result);if(Read(e)!=result)throw new Exception("输入框未接受优化结果，请从面板复制。");return;}
+  // Provider RPCs must not block the dispatcher that removes the floating UI.
+  bool written=await Task.Run(()=>{
+   if(!Unchanged(e,h,id,expected,title))throw new Exception("输入框或草稿已变动，结果保留在面板中，未覆盖。");
+   object p;if(e.TryGetCurrentPattern(ValuePattern.Pattern,out p)&&!((ValuePattern)p).Current.IsReadOnly){
+    if(closing||!OwnerActive(h))throw new Exception("窗口已关闭或切换，未覆盖。");
+    ((ValuePattern)p).SetValue(result);if(Read(e)!=result)throw new Exception("输入框未接受优化结果，请从面板复制。");return true;
+   }
+   return false;
+  });
+  if(written)return;
   // Contenteditable controls often expose TextPattern but not ValuePattern.
   // Never send Enter. Focus, verify again, paste, and restore the clipboard.
-  SetForegroundWindow(h);e.SetFocus();await Task.Delay(120);
-  if(GetForegroundWindow()!=h||!Same(AutomationElement.FocusedElement,id)||!Unchanged(e,h,id,expected,title))throw new Exception("焦点或草稿发生变化，未覆盖。");
+  await Task.Run(()=>{if(closing||!OwnerActive(h))throw new Exception("窗口已关闭或切换，未覆盖。");SetForegroundWindow(h);e.SetFocus();});await Task.Delay(120);
+  bool focused=await Task.Run(()=>GetForegroundWindow()==h&&Same(AutomationElement.FocusedElement,id)&&Unchanged(e,h,id,expected,title));
+  if(closing||GetForegroundWindow()!=h||!focused)throw new Exception("焦点或草稿发生变化，未覆盖。");
   var saved=Clipboard.GetDataObject();Clipboard.SetText(result);applying=true;
-  try {Chord(0x41);Chord(0x56);await Task.Delay(180);if(Read(e)!=result)throw new Exception("无法确认输入框回填，请检查草稿；结果仍在面板中。");}
+  try {Chord(0x41);Chord(0x56);await Task.Delay(180);if(await Task.Run(()=>Read(e))!=result)throw new Exception("无法确认输入框回填，请检查草稿；结果仍在面板中。");}
   finally {applying=false;try{if(Clipboard.ContainsText()&&Clipboard.GetText()==result){if(saved!=null)Clipboard.SetDataObject(saved,true);else Clipboard.Clear();}}catch{}}
  }
  async Task Run(){if(busy||modelPickerOpen)return;if(editor==null){BindFocused(false);if(editor==null){button.ToolTip="尚未识别输入框，请先点击 Codex 的提示词输入框。";return;}}var target=editor;var h=owner;var id=editorId;string title=ownerTitle;lastNotice=null;
-  try {string draft=Read(target);busy=true;RefreshOptions();button.Content="…";string result=await backend.Optimize(draft);if(closing)return;SetPanelResult(draft,result,"优化完成 · "+ConfigurationCaption());await Replace(target,h,id,draft,result,title);original=draft;optimized=result;undoEditor=target;undoOwner=h;undoId=id;undoTitle=title;lastNotice="优化完成；Ctrl+Alt+Z 撤销。";}
+  try {busy=true;RefreshOptions();button.Content="…";string draft=await Task.Run(()=>Read(target));if(closing)return;string result=await backend.Optimize(draft);if(closing)return;SetPanelResult(draft,result,"优化完成 · "+ConfigurationCaption());await Replace(target,h,id,draft,result,title);original=draft;optimized=result;undoEditor=target;undoOwner=h;undoId=id;undoTitle=title;lastNotice="优化完成；Ctrl+Alt+Z 撤销。";}
   catch(Exception ex){if(!closing){EnsurePanel();panelStatus.Text=ex.Message;lastNotice=ex.Message;}}
   finally{busy=false;if(!closing){button.Content=wandIcon;RefreshOptions();}}
  }
- async void Undo(){if(busy||undoEditor==null){Info("暂无可撤销的回填。");return;}busy=true;try{await Replace(undoEditor,undoOwner,undoId,optimized,original,undoTitle);undoEditor=null;button.ToolTip="已恢复原提示词";}catch(Exception ex){Info(ex.Message);}finally{busy=false;}}
+ async void Undo(){if(closing)return;if(busy||undoEditor==null){Info("暂无可撤销的回填。");return;}busy=true;try{await Replace(undoEditor,undoOwner,undoId,optimized,original,undoTitle);undoEditor=null;button.ToolTip="已恢复原提示词";}catch(Exception ex){if(!closing)Info(ex.Message);}finally{busy=false;}}
  void SetPanelResult(string input,string output,string status){EnsurePanel();if(String.IsNullOrEmpty(panelInput.Text))panelInput.Text=input;panelOutput.Text=output;panelStatus.Text=status;}
  [STAThread] public static int Main(string[] args){
   string root=AppDomain.CurrentDomain.BaseDirectory;

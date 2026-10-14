@@ -17,6 +17,7 @@ Native Apple Silicon and Intel builds use Swift/AppKit and a bundled Python 3.12
 - Startup diagnostics and native geometry/settling checks.
 - Native standalone rendering, five menu labels, Enter, Shift+Enter, repeated Enter, and marked-text confirmation handling.
 - Real cross-process Accessibility reading/replacement against a separate native AppKit editor fixture, rejecting changed drafts/window titles and never clicking Send.
+- Actual controller/AX-observer checks for minimize and last-window close while discovery is deliberately blocked; minimized windows cannot reuse cached editor controls.
 
 The release is not Apple-notarized. Real Codex contenteditable behavior, attachments, clipboard fallback, multiple displays, full-screen Spaces, and input methods require validation on target client versions.
 
@@ -26,11 +27,15 @@ Target: GNOME 46. Desktop CI uses separate X11 and nested Wayland sessions. The 
 
 Checks cover the circular button's 26-pixel size and five-item menu, input/model-selector positioning, three mode requests, replacement and undo, edits made while waiting, same text in another window, and hide/reappear behavior during resizing.
 
+Lifecycle checks minimize, hide, restore, and close the last editor window while polling is blocked and the menu is open. The circle must disappear without a backend response and remain hidden after delayed state could arrive.
+
 The browser-backed fixture complements the native GTK fixture. Chromium checks run through native X11, native Wayland, and XWayland inside a Wayland GNOME session. Neither fixture has a real Codex account. Signed-in Codex integration, fractional scaling, attachments, and input methods remain target-client verification items. The Ubuntu CI machines use x86-64; ARM Linux hardware has not been validated.
 
 KDE, other compositors, other GNOME major versions, browser tabs, and IDE input boxes are not covered by this package. No claim of universal Linux compatibility is made.
 
 ## Reproducing checks
+
+Windows adds 33 native WPF/WinEvent lifecycle checks with editor discovery blocked. Closing, minimizing, hiding, and switching away must hide the circle within 150 ms on the test machine, invalidate delayed placement, and release window hooks/timers at exit. These measured fixture timings are not a universal OS scheduling guarantee.
 
 The GitHub Actions workflow is [.github/workflows/platforms.yml](../.github/workflows/platforms.yml). Individual run logs and report artifacts identify the OS, fixture type, completed checks, and source revision. Test helper credentials are simulated; no Codex login files are uploaded to runners or included in release packages.
 
