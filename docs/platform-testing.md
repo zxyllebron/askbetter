@@ -35,7 +35,7 @@ KDE, other compositors, other GNOME major versions, browser tabs, and IDE input 
 
 ## Reproducing checks
 
-Windows adds 33 native WPF/WinEvent lifecycle checks with editor discovery blocked. Closing, minimizing, hiding, and switching away must hide the circle within 150 ms on the test machine, invalidate delayed placement, and release window hooks/timers at exit. These measured fixture timings are not a universal OS scheduling guarantee.
+Windows adds native WPF/WinEvent lifecycle checks with editor discovery blocked. Closing, minimizing, hiding, and switching away must hide the circle within 150 ms on the test machine, invalidate delayed placement, and release window hooks/timers at exit. A real provider on a separate UI thread deliberately delays text reads; the helper must remain responsive and must not apply its optimized reply to a background editor or record a failed replacement for undo. These measured fixture timings are not a universal OS scheduling guarantee.
 
 The GitHub Actions workflow is [.github/workflows/platforms.yml](../.github/workflows/platforms.yml). Individual run logs and report artifacts identify the OS, fixture type, completed checks, and source revision. Test helper credentials are simulated; no Codex login files are uploaded to runners or included in release packages.
 
