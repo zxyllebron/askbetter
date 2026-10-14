@@ -18,13 +18,13 @@ using AskBetter;
 // Only this test program's own disposable WPF windows are activated/closed.
 // Freeze discovery to reproduce an unresponsive UI Automation provider.
 class WindowLifecycleTests {
- sealed class DelayedTextBox:TextBox {protected override AutomationPeer OnCreateAutomationPeer(){return new DelayedPeer(this);}}
+ sealed class DelayedTextBox:TextBox {public bool RejectWrites;protected override AutomationPeer OnCreateAutomationPeer(){return new DelayedPeer(this);}}
  sealed class DelayedPeer:TextBoxAutomationPeer,IValueProvider {
   public DelayedPeer(DelayedTextBox owner):base(owner){}
   public override object GetPattern(PatternInterface pattern){return pattern==PatternInterface.Value?this:base.GetPattern(pattern);}
   bool IValueProvider.IsReadOnly{get{return false;}}
   string IValueProvider.Value{get{Thread.Sleep(800);return ((TextBox)Owner).Text;}}
-  void IValueProvider.SetValue(string value){((TextBox)Owner).Text=value;}
+  void IValueProvider.SetValue(string value){if(((DelayedTextBox)Owner).RejectWrites)throw new InvalidOperationException("Fixture rejects writes");((TextBox)Owner).Text=value;}
  }
  [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
  [DllImport("user32.dll")] static extern bool IsWindow(IntPtr h);
@@ -73,8 +73,17 @@ class WindowLifecycleTests {
    Task request=null;
    HideCheck(desktop,"delayed editor read",()=>{request=(Task)Call(desktop,"Run");other.Activate();});
    Wait(()=>request.IsCompleted,"background request resolves",7000);request.GetAwaiter().GetResult();
+   Require(((TextBox)Field("panelOutput").GetValue(desktop)).Text=="优化：Draft IMU / UDP","optimized reply received before background-write rejection");
    Require(delayedDispatcher.Invoke(()=>delayedInput.Text)=="Draft IMU / UDP","optimized reply cannot overwrite background fixture");
    Require(Field("undoEditor").GetValue(desktop)==null,"failed replacement does not record undo");
+   delayedDispatcher.Invoke(()=>delayed.Activate());Wait(()=>GetForegroundWindow()==delayedHandle,"foreground replacement target");Pump(400);
+   request=(Task)Call(desktop,"Run");Wait(()=>request.IsCompleted,"foreground value replacement",12000);request.GetAwaiter().GetResult();
+   Require(delayedDispatcher.Invoke(()=>delayedInput.Text)=="优化：Draft IMU / UDP","real ValuePattern write succeeds from the worker");
+   Require(Field("undoEditor").GetValue(desktop)==editor,"successful replacement records undo");
+   delayedDispatcher.Invoke(()=>{delayedInput.Text="Write rejected draft";delayedInput.RejectWrites=true;});
+   request=(Task)Call(desktop,"Run");Wait(()=>request.IsCompleted,"rejected provider write",12000);request.GetAwaiter().GetResult();
+   Require(delayedDispatcher.Invoke(()=>delayedInput.Text)=="Write rejected draft","rejected value write preserves the draft");
+   Require((string)Field("original").GetValue(desktop)=="Draft IMU / UDP"&&(string)Field("optimized").GetValue(desktop)=="优化：Draft IMU / UDP","rejected replacement preserves the previous successful undo");
    delayedDispatcher.Invoke(()=>delayed.Close());delayedDispatcher.BeginInvokeShutdown(DispatcherPriority.Send);delayedThread.Join(2000);delayedDispatcher=null;
    Prepare(desktop,first);var closedOwner=Handle(first);
    HideCheck(desktop,"window close",()=>first.Close());
