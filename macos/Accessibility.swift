@@ -40,6 +40,7 @@ struct ComposerTarget {
 
     func unchanged(_ draft: String) -> Bool {
         guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid,
+              attribute(window, kAXMinimizedAttribute as CFString) as? Bool != true,
               textAttribute(window, kAXTitleAttribute as CFString) == title,
               (document == nil || textAttribute(document!, kAXTitleAttribute as CFString) == documentTitle),
               rectangle(editor) != nil, (try? read()) == draft else { return false }
@@ -64,6 +65,7 @@ final class DesktopAccess {
     func discover(pid: pid_t, fresh: Bool = false) throws -> ComposerTarget {
         let now = ProcessInfo.processInfo.systemUptime
         let application = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(application, 0.15)
         if accessibilityPID != pid {
             // Electron documents this flag for third-party assistive clients.
             // Unsupported native apps simply ignore it; OS permission is still required.
@@ -73,6 +75,7 @@ final class DesktopAccess {
         let focused = attribute(application, kAXFocusedWindowAttribute as CFString)
         if !fresh, let target = cached, target.pid == pid, now-discoveredAt < 2,
            focused != nil, CFEqual(focused!, target.window),
+           attribute(target.window, kAXMinimizedAttribute as CFString) as? Bool != true,
            rectangle(target.editor) != nil, rectangle(target.model) != nil,
            textAttribute(target.window, kAXTitleAttribute as CFString) == target.title { return target }
         let app = AXUIElementCreateApplication(pid)

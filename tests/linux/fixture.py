@@ -52,7 +52,13 @@ def handle(request):
     elif operation == "new":
         create("AskBetter fixture 2",request["text"])
     elif operation == "focus":
-        windows[index].present(); editor.grab_focus()
+        windows[index].deiconify(); windows[index].show_all(); windows[index].present(); editor.grab_focus()
+    elif operation == "minimize":
+        windows[index].iconify()
+    elif operation == "hide":
+        windows[index].hide()
+    elif operation == "close":
+        windows[index].destroy()
     elif operation == "quit":
         Gtk.main_quit()
     text=buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter(),True)

@@ -1,7 +1,7 @@
 name: Platform builds and checks
 on:
   push:
-    branches: [main, 'codex/cross-platform']
+    branches: [main, 'codex/*']
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -100,6 +100,9 @@ jobs:
       - name: Existing Windows checks
         shell: powershell
         run: .\scripts\test.ps1
+      - name: Native window close, minimize and blocked-discovery checks
+        shell: powershell
+        run: .\scripts\test-window-lifecycle.ps1
       - name: Package Windows app
         shell: powershell
         run: .\scripts\package.ps1
@@ -107,3 +110,8 @@ jobs:
         with:
           name: AskBetter-Windows
           path: artifacts/releases/AskBetter-Windows.zip
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Windows-lifecycle-reports
+          path: artifacts/tests/window-lifecycle/*.json

@@ -153,7 +153,8 @@ export default class AskBetter extends Extension {
 
     _context() {
         const window = global.display.focus_window;
-        if (!window || !/^(codex|chatgpt|com\.openai\.(codex|chatgpt))$/i.test(window.get_wm_class() ?? ''))
+        if (!window || window.minimized || !window.showing_on_its_workspace() ||
+            !/^(codex|chatgpt|com\.openai\.(codex|chatgpt))$/i.test(window.get_wm_class() ?? ''))
             return {};
         // The rendered buffer can include invisible CSD shadows; accessibility
         // window dimensions describe the visible frame, not that extra padding.
@@ -222,7 +223,7 @@ export default class AskBetter extends Extension {
         this._windowSignals = [];
         if (this._window) {
             for (const event of ['position-changed', 'size-changed', 'notify::title',
-                'notify::maximized-horizontally', 'notify::maximized-vertically'])
+                'notify::maximized-horizontally', 'notify::maximized-vertically', 'notify::minimized', 'unmanaged'])
                 this._windowSignals.push(this._window.connect(event, () => this._hideDuringLayout()));
         }
         this._hideDuringLayout();
@@ -241,18 +242,21 @@ export default class AskBetter extends Extension {
             this._tooltip.hide();
             return;
         }
-        if (this._inflight)
-            return;
         const context = this._context();
-        if (!context.pid && !this._menu.isOpen) {
+        if (!context.pid || Main.overview.visible) {
+            this._menu.close();
             this._button.hide();
             this._tooltip.hide();
         }
+        if (this._inflight)
+            return;
         this._inflight = true;
         this._call('Poll', '(s)', [JSON.stringify(context)], (values, error) => {
             this._inflight = false;
             if (error) {
+                this._menu.close();
                 this._button.hide();
+                this._tooltip.hide();
                 return;
             }
             try {
@@ -275,12 +279,14 @@ export default class AskBetter extends Extension {
                     this._button.set_position(state.x, state.y);
                     this._button.set_size(state.size, state.size);
                     this._button.show();
-                } else if (!this._menu.isOpen) {
+                } else if (!current.pid || Main.overview.visible || !this._menu.isOpen) {
                     this._button.hide();
                     this._tooltip.hide();
                 }
             } catch (exception) {
+                this._menu.close();
                 this._button.hide();
+                this._tooltip.hide();
                 console.error(`AskBetter state: ${exception.message}`);
             }
         });

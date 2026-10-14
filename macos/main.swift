@@ -116,6 +116,7 @@ final class Controller: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var observedPID: pid_t = 0
     var observedWindow: AXUIElement?
     var workspaceObserver: NSObjectProtocol?
+    var workspaceLifetimeObservers: [NSObjectProtocol] = []
 
     override init() {
         config = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/AskBetter/settings.json")
@@ -154,6 +155,13 @@ final class Controller: NSObject, NSApplicationDelegate, NSWindowDelegate {
         statusItem?.button?.title = "AskBetter"
         refreshStatusMenu()
         workspaceObserver = NSWorkspace.shared.notificationCenter.addObserver(forName:NSWorkspace.didActivateApplicationNotification, object:nil, queue:.main) { [weak self] _ in self?.layoutChanged(invalidate:true) }
+        for name in [NSWorkspace.didHideApplicationNotification, NSWorkspace.didTerminateApplicationNotification] {
+            workspaceLifetimeObservers.append(NSWorkspace.shared.notificationCenter.addObserver(forName:name,object:nil,queue:.main) { [weak self] note in
+                guard let self=self, let app=note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+                      app.processIdentifier == self.observedPID else { return }
+                self.target=nil; self.layoutChanged(invalidate:true)
+            })
+        }
         keyMonitor = NSEvent.addGlobalMonitorForEvents(matching:[.keyDown,.scrollWheel,.leftMouseUp]) { [weak self] event in self?.observe(event) }
         timer = Timer(timeInterval:0.2, repeats:true) { [weak self] _ in self?.track() }
         RunLoop.main.add(timer!, forMode:.common)
@@ -211,14 +219,16 @@ final class Controller: NSObject, NSApplicationDelegate, NSWindowDelegate {
         for name in [kAXFocusedWindowChangedNotification,kAXWindowCreatedNotification] {
             AXObserverAddNotification(created,app,name as CFString,info)
         }
-        for name in [kAXMovedNotification,kAXResizedNotification,kAXTitleChangedNotification,kAXUIElementDestroyedNotification] {
+        for name in [kAXMovedNotification,kAXResizedNotification,kAXTitleChangedNotification,kAXUIElementDestroyedNotification,
+                     kAXWindowMiniaturizedNotification,kAXWindowDeminiaturizedNotification] {
             AXObserverAddNotification(created,target.window,name as CFString,info)
         }
         CFRunLoopAddSource(CFRunLoopGetMain(),AXObserverGetRunLoopSource(created),.commonModes)
     }
 
     func track() {
-        guard !standalone, !modelPicker, AXIsProcessTrusted(), let app=NSWorkspace.shared.frontmostApplication, isCodex(app) else { circle.orderOut(nil); return }
+        guard !quitting, !standalone, !modelPicker, AXIsProcessTrusted(), let app=NSWorkspace.shared.frontmostApplication,
+              !app.isTerminated, !app.isHidden, isCodex(app) else { circle.orderOut(nil); return }
         guard !scanInProgress else { return }
         scanInProgress=true
         let pid=app.processIdentifier, stamp=generation
@@ -227,7 +237,7 @@ final class Controller: NSObject, NSApplicationDelegate, NSWindowDelegate {
             do { result = .success(try self.desktop.discover(pid:pid)) } catch { result = .failure(error) }
             DispatchQueue.main.async {
                 self.scanInProgress=false
-                guard !self.standalone, !self.modelPicker, self.generation == stamp,
+                guard !self.quitting, !self.standalone, !self.modelPicker, self.generation == stamp,
                       NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else { return }
                 switch result {
                 case .failure(let error): self.circle.orderOut(nil); self.setNotice(error.localizedDescription)
@@ -398,6 +408,8 @@ final class Controller: NSObject, NSApplicationDelegate, NSWindowDelegate {
         quitting=true; timer?.invalidate(); bridge.close()
         if let value=keyMonitor { NSEvent.removeMonitor(value) }
         if let value=workspaceObserver { NSWorkspace.shared.notificationCenter.removeObserver(value) }
+        for value in workspaceLifetimeObservers { NSWorkspace.shared.notificationCenter.removeObserver(value) }
+        workspaceLifetimeObservers.removeAll()
         if let value=observer { CFRunLoopRemoveSource(CFRunLoopGetMain(),AXObserverGetRunLoopSource(value),.commonModes) }
     }
 }

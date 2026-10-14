@@ -179,6 +179,29 @@ try:
     assert not sent,'The Send button was clicked'
     checks.append('draft replacement never sends the prompt')
 
+    command('minimize')
+    wait(lambda:not state().get('visible'),'minimize immediately hides the old circle',seconds=0.25)
+    command('focus',window=1)
+    driver.Action('focus2')
+    wait(lambda:state().get('visible') and state().get('context',{}).get('windowId')!=current['context']['windowId'],'circle returns on restored second window')
+    checks.append('minimize hides and restore reattaches the circle')
+    command('hide',window=1)
+    wait(lambda:not state().get('visible'),'hidden window removes the old circle',seconds=0.25)
+    command('focus',window=1)
+    driver.Action('focus2')
+    wait(lambda:state().get('visible'),'circle reappears after window hide/show')
+    checks.append('tray-style window hiding removes the circle')
+    command('close',window=0)
+    wait(lambda:state().get('visible') and not state().get('inflight'),'poll settles before close race')
+    driver.Action('menu')
+    driver.Action('hold-poll')
+    command('close',window=1)
+    wait(lambda:not state().get('context',{}).get('pid') and not state().get('visible'),'all windows closed without waiting for poll',seconds=0.25)
+    time.sleep(0.4)
+    assert not state().get('visible'),'late state resurrected the desktop circle'
+    driver.Action('resume-poll')
+    checks.append('last-window close hides the circle during blocked polling and an open menu')
+
     output=ROOT/'artifacts/tests'
     output.mkdir(parents=True,exist_ok=True)
     report={'session':os.environ.get('XDG_SESSION_TYPE'),'toolkit':os.environ.get('GDK_BACKEND'),

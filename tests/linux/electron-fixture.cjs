@@ -42,8 +42,17 @@ app.whenReady().then(async()=>{
             await window.webContents.executeJavaScript(`document.getElementById('editor').textContent=${JSON.stringify(request.text)};`);
         else if(request.op==='new')
             await create('AskBetter fixture 2',request.text);
-        else if(request.op==='focus')
-            window.focus();
+        else if(request.op==='focus') {
+            window.restore(); window.show(); window.focus();
+        } else if(request.op==='minimize')
+            window.minimize();
+        else if(request.op==='hide')
+            window.hide();
+        else if(request.op==='close') {
+            console.log(JSON.stringify({id:request.id,text:''}));
+            window.close();
+            continue;
+        }
         else if(request.op==='quit') {
             console.log(JSON.stringify({id:request.id,text:''}));
             app.quit();

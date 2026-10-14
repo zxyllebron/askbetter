@@ -33,6 +33,9 @@ public sealed partial class Desktop : Window {
  AutomationElement cachedModel;
  DateTime lastDiscovery=DateTime.MinValue;
  Rect lastAnchor=Rect.Empty;
+ IntPtr overlayHandle;
+ bool closing;
+ DispatcherTimer trackingTimer;
  public Desktop(Settings s) {
   settings=s;backend=new Backend(s);
   Width=Height=s.buttonSize;WindowStyle=WindowStyle.None;ResizeMode=ResizeMode.NoResize;AllowsTransparency=true;Background=Brushes.Transparent;Topmost=true;ShowInTaskbar=false;ShowActivated=false;Title="AskBetter";
@@ -46,9 +49,9 @@ public sealed partial class Desktop : Window {
   if(!new[]{"brief","moderate","detailed"}.Contains(settings.lengthStyle))settings.lengthStyle="moderate";
   if(!new[]{"initial","standalone"}.Contains(settings.uiMode))settings.uiMode="initial";
   button.ContextMenu=CreateOptionsMenu(false);
-  SourceInitialized+=(o,e)=>{var h=new WindowInteropHelper(this).Handle;var src=HwndSource.FromHwnd(h);src.AddHook(Hook);bool a=RegisterHotKey(h,1,0x4003,0x42),c=RegisterHotKey(h,3,0x4003,0x5A),d=RegisterHotKey(h,4,0x4003,0x51);hotkeysReady=a&&c&&d;StartLayoutMonitor();};
-  Closed+=(o,e)=>{StopLayoutMonitor();backend.Dispose();var h=new WindowInteropHelper(this).Handle;UnregisterHotKey(h,1);UnregisterHotKey(h,3);UnregisterHotKey(h,4);};
-  var timer=new DispatcherTimer {Interval=TimeSpan.FromMilliseconds(250)};timer.Tick+=async(o,e)=>await Track();timer.Start();
+  SourceInitialized+=(o,e)=>{var h=overlayHandle=new WindowInteropHelper(this).Handle;var src=HwndSource.FromHwnd(h);src.AddHook(Hook);bool a=RegisterHotKey(h,1,0x4003,0x42),c=RegisterHotKey(h,3,0x4003,0x5A),d=RegisterHotKey(h,4,0x4003,0x51);hotkeysReady=a&&c&&d;StartLayoutMonitor();};
+  Closed+=(o,e)=>{closing=true;trackingTimer.Stop();StopLayoutMonitor();backend.Dispose();UnregisterHotKey(overlayHandle,1);UnregisterHotKey(overlayHandle,3);UnregisterHotKey(overlayHandle,4);};
+  trackingTimer=new DispatcherTimer {Interval=TimeSpan.FromMilliseconds(250)};trackingTimer.Tick+=async(o,e)=>await Track();trackingTimer.Start();
   Loaded+=(o,e)=>{Hide();if(settings.uiMode=="standalone")ShowPanel();};
  }
  static void AddMenu(ContextMenu menu,string text,Action action){var item=new MenuItem {Header=text};item.Click+=(o,e)=>action();menu.Items.Add(item);}
@@ -65,7 +68,7 @@ public sealed partial class Desktop : Window {
  AutomationElement FindComposer(AutomationElement root){AutomationElement ignored;return FindComposer(root,out ignored);}
  AutomationElement FindComposer(AutomationElement root,out AutomationElement model){var edits=root.FindAll(TreeScope.Descendants,new PropertyCondition(AutomationElement.ControlTypeProperty,ControlType.Edit));var models=ModelControls(root);AutomationElement best=null;model=null;double bottom=Double.MinValue,distance=Double.MaxValue;foreach(AutomationElement edit in edits){if(!Editable(edit,false))continue;var rect=edit.Current.BoundingRectangle;foreach(AutomationElement candidate in models){if(!ModelForEditor(candidate,rect))continue;var anchor=candidate.Current.BoundingRectangle;double gap=Math.Abs(anchor.Top-rect.Bottom);if(best==null||anchor.Bottom>bottom||(anchor.Bottom==bottom&&gap<distance)){bottom=anchor.Bottom;distance=gap;best=edit;model=candidate;}}}return best;}
  void BindFocused(bool explicitBind){try{IntPtr h=GetForegroundWindow();if(!IsCodex(h)){if(explicitBind)Info("请先在 Codex 窗口中聚焦提示词输入框。");return;}var root=AutomationElement.FromHandle(h);var e=AutomationElement.FocusedElement;if(!Editable(e,explicitBind))e=FindComposer(root);if(e==null){if(explicitBind)Info("尚未识别提示词输入框。");return;}editor=e;owner=h;editorId=e.GetRuntimeId();ownerTitle=ContextTitle(root);ResetLayoutTracking();}catch(Exception ex){if(explicitBind)Info(ex.Message);}}
- async Task Track(){if(settings.uiMode=="standalone"){Hide();return;}if(!layoutGate.Settled(LayoutNow())){Hide();return;}if(scanning||applying||modelPickerOpen)return;scanning=true;int generation=layoutGate.Generation;var selfHandle=new WindowInteropHelper(this).Handle;try{
+ async Task Track(){if(closing)return;if(settings.uiMode=="standalone"){Hide();return;}var active=GetForegroundWindow();if((active==overlayHandle&&!OwnerUsable(owner))||(active!=overlayHandle&&!IsCodex(active))){SuppressOwner(owner!=IntPtr.Zero&&!IsWindow(owner));return;}if(!layoutGate.Settled(LayoutNow())){Hide();return;}if(scanning||applying||modelPickerOpen)return;scanning=true;int generation=layoutGate.Generation;var selfHandle=overlayHandle;try{
   bool rebound=false;IntPtr trackedOwner=IntPtr.Zero;var tracked=await Task.Run(()=>{
    var h=GetForegroundWindow();bool stale=editor==null||!Editable(editor,true)||cachedModel==null;if(!stale)stale=!ModelForEditor(cachedModel,editor.Current.BoundingRectangle);
    if(IsCodex(h)&&(h!=owner||stale||(DateTime.UtcNow-lastDiscovery).TotalSeconds>=2)){var windowRoot=AutomationElement.FromHandle(h);AutomationElement model;var composer=FindComposer(windowRoot,out model);if(composer==null){editor=null;cachedModel=null;lastDiscovery=DateTime.MinValue;return (Rect?)null;}rebound=h!=owner||editor==null||!Same(composer,editorId);editor=composer;owner=h;editorId=composer.GetRuntimeId();ownerTitle=ContextTitle(windowRoot);cachedModel=model;lastDiscovery=DateTime.UtcNow;}
@@ -83,15 +86,15 @@ public sealed partial class Desktop : Window {
    double scale=GetDpiForWindow(owner)/96.0;double size=settings.buttonSize*scale;
    return new Rect(best.Left-settings.anchorGap*scale-size,best.Top+(best.Height-size)/2,size,size);
   });
-  if(settings.uiMode=="standalone"){Hide();return;}if(modelPickerOpen)return;
-  var foreground=GetForegroundWindow();if(trackedOwner!=owner||(foreground!=owner&&foreground!=selfHandle)){Hide();return;}
+  if(closing)return;if(settings.uiMode=="standalone"){Hide();return;}if(modelPickerOpen)return;
+  if(trackedOwner!=owner||!OwnerActive(trackedOwner)){Hide();return;}
   if(rebound){ResetLayoutTracking();return;}
   if(generation!=layoutGate.Generation||!layoutGate.Settled(LayoutNow())){Hide();return;}
   if(tracked.HasValue){if(!lastAnchor.IsEmpty&&tracked.Value!=lastAnchor&&!layoutGate.Pending){lastAnchor=tracked.Value;LayoutChanged();return;}lastAnchor=tracked.Value;var src=PresentationSource.FromVisual(this);var transform=src==null?Matrix.Identity:src.CompositionTarget.TransformFromDevice;var pt=transform.Transform(tracked.Value.TopLeft);Left=pt.X;Top=pt.Y;if(!IsVisible)Show();layoutGate.Applied();}
   else Hide();
- }catch{editor=null;InvalidateComposer();Hide();}finally{scanning=false;}}
+ }catch{if(!closing){editor=null;InvalidateComposer();Hide();}}finally{scanning=false;}}
  static bool Same(AutomationElement e,int[] id){try{return e.GetRuntimeId().SequenceEqual(id);}catch{return false;}}
- bool Unchanged(AutomationElement e,IntPtr h,int[] id,string expected,string title){try{return IsCodex(h)&&Same(e,id)&&!e.Current.IsOffscreen&&ContextTitle(AutomationElement.FromHandle(h))==title&&Read(e)==expected;}catch{return false;}}
+ bool Unchanged(AutomationElement e,IntPtr h,int[] id,string expected,string title){try{return !closing&&OwnerActive(h)&&IsCodex(h)&&Same(e,id)&&!e.Current.IsOffscreen&&ContextTitle(AutomationElement.FromHandle(h))==title&&Read(e)==expected;}catch{return false;}}
  static void Chord(byte key){keybd_event(0x11,0,0,UIntPtr.Zero);keybd_event(key,0,0,UIntPtr.Zero);keybd_event(key,0,2,UIntPtr.Zero);keybd_event(0x11,0,2,UIntPtr.Zero);}
  async Task Replace(AutomationElement e,IntPtr h,int[] id,string expected,string result,string title){
   if(!Unchanged(e,h,id,expected,title))throw new Exception("输入框或草稿已变动，结果保留在面板中，未覆盖。");
@@ -105,9 +108,9 @@ public sealed partial class Desktop : Window {
   finally {applying=false;try{if(Clipboard.ContainsText()&&Clipboard.GetText()==result){if(saved!=null)Clipboard.SetDataObject(saved,true);else Clipboard.Clear();}}catch{}}
  }
  async Task Run(){if(busy||modelPickerOpen)return;if(editor==null){BindFocused(false);if(editor==null){button.ToolTip="尚未识别输入框，请先点击 Codex 的提示词输入框。";return;}}var target=editor;var h=owner;var id=editorId;string title=ownerTitle;lastNotice=null;
-  try {string draft=Read(target);busy=true;RefreshOptions();button.Content="…";string result=await backend.Optimize(draft);SetPanelResult(draft,result,"优化完成 · "+ConfigurationCaption());if(Unchanged(target,h,id,draft,title)){original=draft;optimized=result;undoEditor=target;undoOwner=h;undoId=id;undoTitle=title;}await Replace(target,h,id,draft,result,title);lastNotice="优化完成；Ctrl+Alt+Z 撤销。";}
-  catch(Exception ex){EnsurePanel();panelStatus.Text=ex.Message;lastNotice=ex.Message;}
-  finally{busy=false;button.Content=wandIcon;RefreshOptions();}
+  try {string draft=Read(target);busy=true;RefreshOptions();button.Content="…";string result=await backend.Optimize(draft);if(closing)return;SetPanelResult(draft,result,"优化完成 · "+ConfigurationCaption());await Replace(target,h,id,draft,result,title);original=draft;optimized=result;undoEditor=target;undoOwner=h;undoId=id;undoTitle=title;lastNotice="优化完成；Ctrl+Alt+Z 撤销。";}
+  catch(Exception ex){if(!closing){EnsurePanel();panelStatus.Text=ex.Message;lastNotice=ex.Message;}}
+  finally{busy=false;if(!closing){button.Content=wandIcon;RefreshOptions();}}
  }
  async void Undo(){if(busy||undoEditor==null){Info("暂无可撤销的回填。");return;}busy=true;try{await Replace(undoEditor,undoOwner,undoId,optimized,original,undoTitle);undoEditor=null;button.ToolTip="已恢复原提示词";}catch(Exception ex){Info(ex.Message);}finally{busy=false;}}
  void SetPanelResult(string input,string output,string status){EnsurePanel();if(String.IsNullOrEmpty(panelInput.Text))panelInput.Text=input;panelOutput.Text=output;panelStatus.Text=status;}

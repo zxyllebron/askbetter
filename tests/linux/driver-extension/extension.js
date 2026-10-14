@@ -46,6 +46,10 @@ export default class Driver extends Extension {
             Main.overview.hide();
             return;
         }
+        if (action === 'resume-poll') {
+            extension._inflight=false;
+            return;
+        }
         if (action === 'focus1' || action === 'focus2') {
             Main.overview.hide();
             const target=global.display.get_tab_list(Meta.TabList.NORMAL_ALL,null)
@@ -62,6 +66,10 @@ export default class Driver extends Extension {
             extension._button.emit('clicked',1);
         else if (action === 'clipboard-text')
             St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD,'原剪贴板：IMU / UDP');
+        else if (action === 'hold-poll')
+            extension._inflight=true;
+        else if (action === 'menu')
+            extension._menu.open();
         else if (action === 'ctrl-down' || action === 'ctrl-up') {
             this._keyboard ??= Clutter.get_default_backend().get_default_seat()
                 .create_virtual_device(Clutter.InputDeviceType.KEYBOARD_DEVICE);
