@@ -34,6 +34,11 @@ with tempfile.TemporaryDirectory() as temporary:
         output=ROOT/'artifacts/tests/macos-accessibility.json'
         output.write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8')
         print(json.dumps(result,ensure_ascii=False))
+        subprocess.run([str(app/'Contents/MacOS/AskBetter'),'--window-lifecycle-probe',str(pid),str(folder)],check=True,timeout=30)
+        lifecycle=json.loads((folder/'lifecycle.json').read_text())
+        assert lifecycle['minimizeHides'] and lifecycle['closeHides'] and lifecycle['minimizedOwnerRejected'],lifecycle
+        (ROOT/'artifacts/tests/macos-window-lifecycle.json').write_text(json.dumps(lifecycle,indent=2),encoding='utf-8')
+        print(json.dumps(lifecycle))
     finally:
         child.terminate()
         child.wait(timeout=5)

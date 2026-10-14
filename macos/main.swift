@@ -414,7 +414,50 @@ final class Controller: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 }
 
-if let probe=CommandLine.arguments.firstIndex(of:"--desktop-probe"), CommandLine.arguments.count>probe+2 {
+if let probe=CommandLine.arguments.firstIndex(of:"--window-lifecycle-probe"), CommandLine.arguments.count>probe+2 {
+    let app=NSApplication.shared
+    app.setActivationPolicy(.accessory)
+    let pid=pid_t(CommandLine.arguments[probe+1])!
+    let folder=URL(fileURLWithPath:CommandLine.arguments[probe+2],isDirectory:true)
+    guard let fixture=NSRunningApplication(processIdentifier:pid),
+          fixture.bundleIdentifier == "io.github.zxyllebron.askbetter.fixture",AXIsProcessTrusted() else { exit(1) }
+    fixture.activate(options:[])
+    let controller=Controller()
+    controller.applicationDidFinishLaunching(Notification(name:NSApplication.didFinishLaunchingNotification))
+    let access=DesktopAccess()
+    var stage=0, attempts=0, minimizedRejected=false
+    var hiddenAt=ProcessInfo.processInfo.systemUptime
+    var latencies:[String:Double]=[:]
+    func command(_ value:[String:Any]) {
+        try! JSONSerialization.data(withJSONObject:value).write(to:folder.appendingPathComponent("command.json"),options:.atomic)
+    }
+    let timer=Timer(timeInterval:0.02,repeats:true) { _ in
+        attempts += 1
+        guard attempts<1000 else { print("Native window lifecycle timeout, stage \(stage)"); exit(1) }
+        if stage == 0 && controller.circle.isVisible && !controller.scanInProgress {
+            _ = try! access.discover(pid:pid,fresh:true)
+            controller.scanInProgress=true; hiddenAt=ProcessInfo.processInfo.systemUptime
+            command(["id":2,"minimized":true]); stage=1
+        } else if stage == 1 && !controller.circle.isVisible {
+            latencies["minimize"]=(ProcessInfo.processInfo.systemUptime-hiddenAt)*1000
+            minimizedRejected=(try? access.discover(pid:pid)) == nil
+            controller.scanInProgress=false
+            command(["id":3,"minimized":false,"focus":true]); stage=2
+        } else if stage == 2 && controller.circle.isVisible && !controller.scanInProgress {
+            controller.scanInProgress=true; hiddenAt=ProcessInfo.processInfo.systemUptime
+            command(["id":4,"close":true]); stage=3
+        } else if stage == 3 && !controller.circle.isVisible {
+            latencies["close"]=(ProcessInfo.processInfo.systemUptime-hiddenAt)*1000
+            let report:[String:Any]=["minimizeHides":true,"closeHides":true,"minimizedOwnerRejected":minimizedRejected,
+                "discoveryWasBlocked":true,"hideLatencyMs":latencies,"realCodex":false,"fixture":"Native AppKit editor"]
+            try! JSONSerialization.data(withJSONObject:report,options:[.prettyPrinted,.sortedKeys]).write(to:folder.appendingPathComponent("lifecycle.json"))
+            controller.applicationWillTerminate(Notification(name:NSApplication.willTerminateNotification))
+            print("Native minimize/close visibility guards passed with discovery blocked"); exit(0)
+        }
+    }
+    RunLoop.main.add(timer,forMode:.common)
+    app.run()
+} else if let probe=CommandLine.arguments.firstIndex(of:"--desktop-probe"), CommandLine.arguments.count>probe+2 {
     let app=NSApplication.shared
     app.setActivationPolicy(.accessory)
     let pid=pid_t(CommandLine.arguments[probe+1])!

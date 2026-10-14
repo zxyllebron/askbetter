@@ -7,7 +7,8 @@ final class Fixture: NSObject, NSApplicationDelegate {
     var lastID=0
     let folder=URL(fileURLWithPath:CommandLine.arguments[1],isDirectory:true)
     func applicationDidFinishLaunching(_ notification:Notification) {
-        window=NSWindow(contentRect:NSRect(x:120,y:140,width:900,height:600),styleMask:[.titled,.closable,.resizable],backing:.buffered,defer:false)
+        window=NSWindow(contentRect:NSRect(x:120,y:140,width:900,height:600),styleMask:[.titled,.closable,.resizable,.miniaturizable],backing:.buffered,defer:false)
+        window.isReleasedWhenClosed=false
         window.title="AskBetter fixture — native macOS editor"
         let content=window.contentView!
         let scroll=NSScrollView(frame:NSRect(x:20,y:70,width:860,height:510))
@@ -32,7 +33,9 @@ final class Fixture: NSObject, NSApplicationDelegate {
             self.lastID=identifier
             if let text=value["text"] as? String { self.editor.string=text }
             if let title=value["title"] as? String { self.window.title=title }
+            if let minimized=value["minimized"] as? Bool { if minimized { self.window.miniaturize(nil) } else { self.window.deminiaturize(nil) } }
             if value["focus"] as? Bool == true { self.window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps:true) }
+            if value["close"] as? Bool == true { self.window.close() }
             if value["quit"] as? Bool == true { NSApp.terminate(nil) }
             try? JSONSerialization.data(withJSONObject:["id":identifier,"text":self.editor.string]).write(to:self.folder.appendingPathComponent("reply.json"),options:.atomic)
         }
