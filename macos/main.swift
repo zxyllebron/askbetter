@@ -97,6 +97,7 @@ final class Controller: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var modelPicker = false
     var quitting = false
     var notice = ""
+    var discoveryNotice = ""
     var discoveryDiagnostic: [String: Any] = [:]
     var lastInput = ""
     var lastResult = ""
@@ -171,7 +172,7 @@ final class Controller: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if !AXIsProcessTrusted() {
             let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String:true] as CFDictionary
             _ = AXIsProcessTrustedWithOptions(options)
-            setNotice("请在系统设置 → 隐私与安全性 → 辅助功能中允许 AskBetter")
+            setDiscoveryNotice("请在系统设置 → 隐私与安全性 → 辅助功能中允许 AskBetter")
         }
     }
 
@@ -180,6 +181,13 @@ final class Controller: NSObject, NSApplicationDelegate, NSWindowDelegate {
         notice=value; wand.toolTip="优化提示词 · "+caption+(value.isEmpty ? "" : "\n"+value)
         statusLabel?.stringValue=value.isEmpty ? caption : value
         if changed { refreshStatusMenu() }
+    }
+
+    func setDiscoveryNotice(_ value:String) {
+        guard discoveryNotice != value else { return }
+        discoveryNotice=value
+        wand.toolTip="优化提示词 · "+caption+(value.isEmpty ? (notice.isEmpty ? "" : "\n"+notice) : "\n"+value)
+        refreshStatusMenu()
     }
 
     func layoutChanged(invalidate: Bool = false) {
@@ -230,7 +238,7 @@ final class Controller: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func track() {
-        guard AXIsProcessTrusted() else { circle.orderOut(nil); setNotice("需要辅助功能权限：系统设置 → 隐私与安全性 → 辅助功能 → AskBetter"); return }
+        guard AXIsProcessTrusted() else { circle.orderOut(nil); setDiscoveryNotice("需要辅助功能权限：系统设置 → 隐私与安全性 → 辅助功能 → AskBetter"); return }
         guard !quitting, !standalone, !modelPicker, let app=NSWorkspace.shared.frontmostApplication,
               !app.isTerminated, !app.isHidden, isCodex(app) else { circle.orderOut(nil); return }
         guard !scanInProgress else { return }
@@ -246,7 +254,7 @@ final class Controller: NSObject, NSApplicationDelegate, NSWindowDelegate {
                       NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else { return }
                 self.discoveryDiagnostic=diagnostic
                 switch result {
-                case .failure(let error): self.circle.orderOut(nil); self.setNotice(error.localizedDescription)
+                case .failure(let error): self.circle.orderOut(nil); self.setDiscoveryNotice(error.localizedDescription)
                 case .success(let target):
                     self.target=target; self.watch(target)
                     guard let input=rectangle(target.editor), let window=rectangle(target.window),
@@ -256,7 +264,7 @@ final class Controller: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     let top=NSScreen.screens.first?.frame.maxY ?? 0
                     self.circle.setFrame(NSRect(x:rect.x,y:top-rect.y-rect.height,width:rect.width,height:rect.height),display:true)
                     self.circle.orderFrontRegardless()
-                    self.setNotice("")
+                    self.setDiscoveryNotice("")
                 }
             }
         }
@@ -280,7 +288,7 @@ final class Controller: NSObject, NSApplicationDelegate, NSWindowDelegate {
         guard statusItem != nil else { return }
         let menu=optionsMenu(inPanel:standalone)
         menu.addItem(.separator())
-        let status=NSMenuItem(title:notice.isEmpty ? "自动识别当前输入框；不绑定登录账号" : notice,action:nil,keyEquivalent:"")
+        let status=NSMenuItem(title:!discoveryNotice.isEmpty ? discoveryNotice : (notice.isEmpty ? "自动识别当前输入框；不绑定登录账号" : notice),action:nil,keyEquivalent:"")
         status.isEnabled=false; menu.addItem(status)
         let diagnostic=NSMenuItem(title:"复制诊断信息（不含草稿或账号）",action:#selector(copyDiagnostic),keyEquivalent:"")
         diagnostic.target=self; menu.addItem(diagnostic)
