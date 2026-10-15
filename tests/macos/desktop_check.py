@@ -34,6 +34,12 @@ with tempfile.TemporaryDirectory() as temporary:
         output=ROOT/'artifacts/tests/macos-accessibility.json'
         output.write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8')
         print(json.dumps(result,ensure_ascii=False))
+        subprocess.run([str(app/'Contents/MacOS/AskBetter'),'--account-layout-probe',str(pid),str(folder)],check=True,timeout=65)
+        layouts=json.loads((folder/'account-layouts.json').read_text())
+        assert len(layouts['layouts']) == 7 and all(item['circle'] and item['replacement'] for item in layouts['layouts']),layouts
+        assert not (folder/'sent.txt').exists(),'Layout test clicked Send'
+        (ROOT/'artifacts/tests/macos-account-layouts.json').write_text(json.dumps(layouts,ensure_ascii=False,indent=2),encoding='utf-8')
+        print(json.dumps(layouts,ensure_ascii=False))
         subprocess.run([str(app/'Contents/MacOS/AskBetter'),'--window-lifecycle-probe',str(pid),str(folder)],check=True,timeout=30)
         lifecycle=json.loads((folder/'lifecycle.json').read_text())
         assert lifecycle['minimizeHides'] and lifecycle['closeHides'] and lifecycle['minimizedOwnerRejected'],lifecycle

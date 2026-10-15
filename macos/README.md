@@ -32,6 +32,16 @@ The original draft, window, and document are checked before replacement. Changed
 
 ## Build
 
+## Account-independent discovery and troubleshooting
+
+The circle is not gated on an account, subscription, CLI login, or optimization model. AskBetter recognizes model selectors across account layouts (including GPT-4o, Auto, Thinking and generic/localized selectors), and can anchor to a labelled main composer if no model picker is exposed. An unreadable or unrecognized editor is not modified. The selected optimization model remains separate from the model displayed in the chat.
+
+If the circle is missing, check that AskBetter is running (menu-bar item), circular-button mode is selected, and Accessibility permission is granted. Return to an editable Codex/ChatGPT chat. After updating an ad-hoc-signed app, macOS may require removing the old AskBetter entry from Accessibility and adding the replacement app again. This permission belongs to the macOS user, not the Codex account.
+
+The menu-bar menu shows discovery/permission errors and offers **Copy diagnostics (no drafts or accounts)** (Chinese label: `复制诊断信息（不含草稿或账号）`). It copies permission state, app bundle/name, control counts and discovery strategy; it does not copy window titles, draft text, email addresses, tokens or login data. If one login layout still fails, provide this diagnostic while that window is frontmost. No `AGENTS.md` or account registration is needed. Actual model requests use your own local CLI login and model access.
+
+## Build
+
 From the full source repository on the matching Mac architecture:
 
 ```sh

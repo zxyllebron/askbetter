@@ -10,6 +10,10 @@ Includes portable apps, editable optimization prompts, C#/Swift/Python source co
 
 Each platform has its own download path. The Ubuntu package targets GNOME 46 in both X11 and Wayland sessions. Mac packages include their Python helper runtime.
 
+AskBetter is not bound to the author's account. No account whitelist, personal login file, or extra Codex rule is required. Button discovery runs locally and independently of CLI login; it supports different model labels and a labelled-composer fallback when no model picker is shown. Search, rename and question-reply fields are excluded. If the client exposes neither a recognizable composer label nor a nearby model control, AskBetter leaves it untouched.
+
+Each user needs their own signed-in Codex CLI and access to the selected optimization model and Fast mode. On Mac, allow AskBetter in Accessibility; on Ubuntu, install/enable the GNOME extension in that user's desktop session. Switching the Codex/ChatGPT login in the same desktop session requires no AskBetter account setup or rules change. App/extension identifiers containing `zxyllebron` are public software namespaces, not account checks.
+
 | Platform | Download | Setup guide |
 | --- | --- | --- |
 | Windows 10/11 | [Windows ZIP](https://github.com/zxyllebron/askbetter/releases/download/v1.0.1/AskBetter-Windows.zip) | [Quick start below](#windows-quick-start) |

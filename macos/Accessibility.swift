@@ -26,7 +26,7 @@ struct ComposerTarget {
     let pid: pid_t
     let window: AXUIElement
     let editor: AXUIElement
-    let model: AXUIElement
+    let model: AXUIElement?
     let title: String
     let documentTitle: String
     let document: AXUIElement?
@@ -59,6 +59,8 @@ final class DesktopAccess {
     private var cached: ComposerTarget?
     private var discoveredAt: TimeInterval = 0
     private var accessibilityPID: pid_t = 0
+    private var enabledAt: TimeInterval = -Double.infinity
+    private(set) var diagnostic: [String: Any] = [:]
 
     func invalidate() { cached = nil }
 
@@ -66,18 +68,20 @@ final class DesktopAccess {
         let now = ProcessInfo.processInfo.systemUptime
         let application = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(application, 0.15)
-        if accessibilityPID != pid {
+        if accessibilityPID != pid || (cached == nil && now-enabledAt >= 2) {
             // Electron documents this flag for third-party assistive clients.
             // Unsupported native apps simply ignore it; OS permission is still required.
             _ = AXUIElementSetAttributeValue(application, "AXManualAccessibility" as CFString, kCFBooleanTrue)
             accessibilityPID = pid
+            enabledAt = now
         }
         let focused = attribute(application, kAXFocusedWindowAttribute as CFString)
         if !fresh, let target = cached, target.pid == pid, now-discoveredAt < 2,
            focused != nil, CFEqual(focused!, target.window),
            attribute(target.window, kAXMinimizedAttribute as CFString) as? Bool != true,
-           rectangle(target.editor) != nil, rectangle(target.model) != nil,
+           rectangle(target.editor) != nil, (target.model == nil || rectangle(target.model!) != nil),
            textAttribute(target.window, kAXTitleAttribute as CFString) == target.title { return target }
+        cached = nil
         let app = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(app, 0.15)
         guard let rawWindow = attribute(app, kAXFocusedWindowAttribute as CFString),
@@ -88,7 +92,7 @@ final class DesktopAccess {
         }
         let windowRect = rectangle(window)
         var stack: [(AXUIElement, AXUIElement?)] = [(window, nil)]
-        var editors: [(AXUIElement, ABRect, AXUIElement?)] = []
+        var editors: [(AXUIElement, ABRect, AXUIElement?, Bool)] = []
         var models: [(AXUIElement, ABRect)] = []
         var count = 0
         while let (node, parentDocument) = stack.popLast(), count < 2500 {
@@ -97,11 +101,14 @@ final class DesktopAccess {
             let document = role == "AXWebArea" ? node : parentDocument
             if ["AXTextArea", "AXTextField"].contains(role), let rect = rectangle(node),
                attribute(node, kAXEnabledAttribute as CFString) as? Bool != false {
-                if let container = windowRect, rect.bottom < container.y || rect.y > container.bottom { continue }
-                if attribute(node, kAXValueAttribute as CFString) is String { editors.append((node, rect, document)) }
+                if let container = windowRect, rect.bottom <= container.y || rect.y >= container.bottom || rect.right <= container.x || rect.x >= container.right { continue }
+                let name = [kAXTitleAttribute, kAXDescriptionAttribute, kAXHelpAttribute, "AXPlaceholderValue"].map { textAttribute(node,$0 as CFString) }.joined(separator:" ").trimmingCharacters(in:.whitespacesAndNewlines)
+                if excludedEditor(name) { continue }
+                let semantic = [kAXTitleAttribute, kAXDescriptionAttribute, "AXPlaceholderValue"].contains { composerLabel(textAttribute(node,$0 as CFString)) }
+                if attribute(node, kAXValueAttribute as CFString) is String { editors.append((node, rect, document, semantic)) }
             } else if ["AXButton", "AXPopUpButton", "AXComboBox", "AXMenuButton"].contains(role) {
-                let name = textAttribute(node, kAXTitleAttribute as CFString)+" "+textAttribute(node, kAXDescriptionAttribute as CFString)
-                if name.range(of: "GPT.?[56]|select model|选择模型", options: [.regularExpression, .caseInsensitive]) != nil,
+                let names = [kAXTitleAttribute, kAXDescriptionAttribute, kAXHelpAttribute, kAXValueAttribute].map { textAttribute(node,$0 as CFString) }
+                if names.contains(where:modelLabel),
                    let rect = rectangle(node) { models.append((node, rect)) }
             }
             if let children = attribute(node, kAXChildrenAttribute as CFString) as? [AXUIElement] {
@@ -111,17 +118,30 @@ final class DesktopAccess {
         var choice: ComposerTarget?
         var bottom = -Double.infinity
         var distance = Double.infinity
-        for (editor, inputRect, document) in editors {
+        var bestSemantic = false
+        for (editor, inputRect, document, semantic) in editors {
             for (model, modelRect) in models where nearModel(inputRect, modelRect) {
                 let gap = abs(modelRect.y-inputRect.bottom)
-                if modelRect.bottom > bottom || (modelRect.bottom == bottom && gap < distance) {
+                if choice == nil || (semantic && !bestSemantic) || (semantic == bestSemantic && (modelRect.bottom > bottom || (modelRect.bottom == bottom && gap < distance))) {
                     bottom = modelRect.bottom; distance = gap
+                    bestSemantic = semantic
                     choice = ComposerTarget(pid: pid, window: window, editor: editor, model: model,
                         title: textAttribute(window, kAXTitleAttribute as CFString),
                         documentTitle: document.map { textAttribute($0, kAXTitleAttribute as CFString) } ?? "", document: document)
                 }
             }
         }
+        if !bestSemantic {
+            let labelled = editors.filter { $0.3 }.sorted { $0.1.bottom > $1.1.bottom }
+            if let (editor, inputRect, document, _) = labelled.first, let windowRect = windowRect,
+               composerAnchor(inputRect,model:nil,window:windowRect) != nil {
+                choice = ComposerTarget(pid:pid,window:window,editor:editor,model:nil,
+                    title:textAttribute(window,kAXTitleAttribute as CFString),
+                    documentTitle:document.map { textAttribute($0,kAXTitleAttribute as CFString) } ?? "",document:document)
+            }
+        }
+        diagnostic = ["nodes":count,"editors":editors.count,"modelControls":models.count,
+                      "strategy":choice == nil ? "none" : (choice!.model == nil ? "labelled-composer" : "model-control")]
         guard let target = choice else { throw ABError.message("无法识别 Codex 输入框或模型选择器") }
         cached = target; discoveredAt = now
         return target

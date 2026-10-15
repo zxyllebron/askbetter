@@ -4,10 +4,13 @@ import time
 from dataclasses import dataclass
 from crossplatform.geometry import Rect, near_model, to_shell, anchor
 
-MODEL = re.compile(r"GPT.?[56]|(?:select|choose)\s+(?:(?:chatgpt|codex)\s+)?model|"
-                   r"选择(?:\s*(?:chatgpt|codex))?\s*模型", re.I)
+MODEL = re.compile(r"GPT[ .-]?[0-9]|(?:select|choose|change).*model|选择.*模型|切换.*模型|"
+                   r"^(?:Auto|Automatic|Instant|Thinking|Pro|Fast|自动|快速|思考|ChatGPT|Codex)$", re.I)
 APPLICATION = re.compile(r"^(codex|chatgpt)$", re.I)
-COMPOSER = re.compile(r"^(?:Work with (?:Codex|ChatGPT)|Ask (?:Codex|ChatGPT))$", re.I)
+COMPOSER = re.compile(r"^(?:Work with (?:Codex|ChatGPT)|Ask (?:Codex|ChatGPT|anything)|"
+                      r"Message(?: (?:Codex|ChatGPT))?|Send a message|Type a message|输入(?:消息|提示词)|"
+                      r"发送消息|向.*发送消息|询问.*|有什么可以帮忙的)[. …。]*$", re.I)
+EXCLUDED = re.compile(r"search|find|reply|response|answer|rename|title|搜索|查找|回复|回答|重命名|标题", re.I)
 REPLY = re.compile(r"^(?:Reply(?:\.{3}|…)?|Or write your own response|回复(?:\.{3}|…)?|或自行填写回复)$", re.I)
 
 
@@ -135,7 +138,7 @@ class DesktopAccess:
             previous = self.cached.context
             if all(context.get(key) == previous.get(key) for key in ("pid", "windowId", "title")):
                 try:
-                    if self._visible(self.cached.editor) and self._visible(self.cached.model):
+                    if self._visible(self.cached.editor) and (self.cached.model is None or self._visible(self.cached.model)):
                         self.cached.context = dict(context)
                         return self.cached
                 except Exception:
@@ -181,10 +184,16 @@ class DesktopAccess:
         choices = [(bool(COMPOSER.fullmatch(editor.name or "")), model_rect.bottom,
                     -abs(model_rect.y-editor_rect.bottom), editor, model)
                    for editor, editor_rect in editors for model, model_rect in models
-                   if not REPLY.fullmatch(editor.name or "") and near_model(editor_rect, model_rect)]
-        if not choices:
+                   if not EXCLUDED.search(editor.name or "") and near_model(editor_rect, model_rect)]
+        best = max(choices, key=lambda value: value[:3]) if choices else None
+        labelled = [(node, rect) for node, rect in editors if COMPOSER.fullmatch(node.name or "")]
+        if labelled and (best is None or not best[0]):
+            editor, _ = max(labelled, key=lambda value: value[1].bottom)
+            model = None
+        elif best:
+            _, _, _, editor, model = best
+        else:
             raise RuntimeError("Codex input box/model selector not exposed through AT-SPI")
-        _, _, _, editor, model = max(choices, key=lambda value: value[:3])
         editor_rect = self._rectangle(editor)
         has_reply = any(node != editor and (REPLY.fullmatch(node.name or "") or
                         (COMPOSER.fullmatch(editor.name or "") and rect.valid() and
@@ -207,8 +216,13 @@ class DesktopAccess:
         # accessible frame includes them. Match the exposed dimensions first.
         if abs(frame.height-client.height) < abs(frame.height-buffer.height):
             buffer = client
-        model = to_shell(self._rectangle(target.model), frame, buffer)
         editor = to_shell(self._rectangle(target.editor), frame, buffer)
+        if target.model is None:
+            y = editor.bottom+gap if editor.bottom+size+2*gap <= buffer.bottom else editor.y-gap-size
+            if y < buffer.y or y+size > buffer.bottom or editor.width < size+2*gap:
+                raise RuntimeError("No safe space beside the labelled composer")
+            return Rect(editor.right-gap-size, y, size, size)
+        model = to_shell(self._rectangle(target.model), frame, buffer)
         if model.x >= editor.right and model.y < editor.bottom and model.bottom > editor.y:
             if target.has_reply:
                 # A question card collapses the main composer to one row. Its

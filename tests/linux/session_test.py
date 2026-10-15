@@ -127,6 +127,24 @@ try:
     checks.append('Ctrl alone keeps the circular button visible')
     initial_clipboard_formats=state().get('clipboardFormats') or []
 
+    for model,label in (('GPT-4o','Message ChatGPT'),('Auto','Ask anything'),
+                        ('Select ChatGPT model','Work with ChatGPT'),('','Message ChatGPT'),
+                        ('GPT-6 Luna','Work with Codex')):
+        draft='账号界面兼容测试：IMU / UDP'
+        command('account',model=model,label=label,text=draft)
+        wait(lambda:access.discover(state()['context'],fresh=True).editor.name==label,'account layout loaded')
+        target=access.discover(state()['context'],fresh=True)
+        assert (target.model is None)==(not model),model
+        expected=access.position(target)
+        wait(lambda:state().get('visible') and abs(state()['x']-expected.x)<1 and abs(state()['y']-expected.y)<1,'circle follows account layout')
+        driver.Action('click')
+        wait(lambda:command('get')=='优化：'+draft,'account-layout replacement')
+        wait(lambda:not json.loads(str(helper.Poll(json.dumps(state()['context']))))['busy'],'account-layout replacement verified')
+        driver.Action('undo')
+        wait(lambda:command('get')==draft,'account-layout undo')
+        wait(lambda:not json.loads(str(helper.Poll(json.dumps(state()['context']))))['busy'],'account-layout undo verified')
+        checks.append('account-independent '+(model or 'no picker')+' -> circle -> replacement -> undo')
+
     if os.environ.get('ASKBETTER_RICH_EDITOR') == '1':
         draft='背景：Python 项目报错\n先检查日志和相关代码\n最后说明如何验证'
         command('set',text=draft)

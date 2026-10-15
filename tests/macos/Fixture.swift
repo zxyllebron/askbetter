@@ -3,6 +3,7 @@ import AppKit
 final class Fixture: NSObject, NSApplicationDelegate {
     var window:NSWindow!
     var editor:NSTextView!
+    var model:NSButton!
     var timer:Timer?
     var lastID=0
     let folder=URL(fileURLWithPath:CommandLine.arguments[1],isDirectory:true)
@@ -17,7 +18,7 @@ final class Fixture: NSObject, NSApplicationDelegate {
         editor.font=NSFont.systemFont(ofSize:14); editor.autoresizingMask=[.width]
         editor.textContainer?.widthTracksTextView=true; editor.setAccessibilityLabel("Work with Codex")
         scroll.documentView=editor; content.addSubview(scroll)
-        let model=NSButton(frame:NSRect(x:500,y:20,width:200,height:30))
+        model=NSButton(frame:NSRect(x:500,y:20,width:200,height:30))
         model.title="GPT-6 Luna"; model.bezelStyle = .rounded; model.autoresizingMask=[.minXMargin]
         content.addSubview(model)
         let send=NSButton(frame:NSRect(x:730,y:20,width:130,height:30))
@@ -32,6 +33,9 @@ final class Fixture: NSObject, NSApplicationDelegate {
                   let identifier=value["id"] as? Int,identifier>self.lastID else { return }
             self.lastID=identifier
             if let text=value["text"] as? String { self.editor.string=text }
+            if let label=value["editorLabel"] as? String { self.editor.setAccessibilityLabel(label) }
+            if let label=value["modelLabel"] as? String { self.model.title=label }
+            if let hidden=value["modelHidden"] as? Bool { self.model.isHidden=hidden }
             if let title=value["title"] as? String { self.window.title=title }
             if let minimized=value["minimized"] as? Bool { if minimized { self.window.miniaturize(nil) } else { self.window.deminiaturize(nil) } }
             if value["focus"] as? Bool == true { self.window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps:true) }

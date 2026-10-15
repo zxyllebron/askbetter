@@ -97,7 +97,7 @@ class ChatLayoutTests(unittest.TestCase):
  def context(self):
   return {'pid':4379,'windowId':'5','title':'ChatGPT','buffer':{'x':0,'y':0,'width':860,'height':651}}
  def test_generic_model_picker_labels(self):
-  for name in ('Select ChatGPT model','Choose Codex model','选择 ChatGPT 模型','Select model','GPT-6.1 Sol'):
+  for name in ('Select ChatGPT model','Choose Codex model','选择 ChatGPT 模型','Select model','GPT-6.1 Sol','GPT-4o','Auto','Thinking','自动'):
    self.assertIsNotNone(MODEL.search(name),name)
  def test_compact_chatgpt_model_beside_editor(self):
   editor=ComposerNode('entry','Ask ChatGPT',Rect(100,550,450,36))
@@ -121,11 +121,31 @@ class ChatLayoutTests(unittest.TestCase):
   new_model=ComposerNode('push button','Select ChatGPT model',Rect(554,554,140,28))
   access.nodes=[new_editor,new_model];second=access.discover(self.context())
   self.assertIs(second.editor,new_editor);self.assertNotEqual(first.identity(),second.identity())
- def test_distant_picker_is_not_associated_with_editor(self):
+ def test_distant_picker_uses_labelled_composer_fallback(self):
   editor=ComposerNode('entry','Ask ChatGPT',Rect(100,550,450,36))
   model=ComposerNode('push button','Select ChatGPT model',Rect(600,554,140,28))
-  with self.assertRaisesRegex(RuntimeError,'input box/model selector'):
-   ComposerAccess([editor,model]).discover(self.context())
+  access=ComposerAccess([editor,model]);target=access.discover(self.context())
+  self.assertIs(target.editor,editor);self.assertIsNone(target.model)
+  self.assertGreaterEqual(access.position(target).y,editor.rect.bottom)
+ def test_no_picker_account_layouts(self):
+  for label in ('Message ChatGPT','Ask anything','输入消息','Work with Codex'):
+   editor=ComposerNode('entry',label,Rect(100,480,700,70))
+   access=ComposerAccess([editor]);target=access.discover(self.context())
+   self.assertIs(target.editor,editor);self.assertIsNone(target.model)
+   self.assertEqual(access.position(target),Rect(766,558,26,26))
+ def test_no_picker_does_not_select_search_reply_or_unknown_editor(self):
+  for label in ('Search messages','Reply...','Rename',''):
+   editor=ComposerNode('entry',label,Rect(100,480,700,70))
+   with self.assertRaisesRegex(RuntimeError,'input box/model selector'):
+    ComposerAccess([editor]).discover(self.context())
+ def test_account_picker_disappears_and_reappears(self):
+  editor=ComposerNode('entry','Message ChatGPT',Rect(100,480,700,70))
+  model=ComposerNode('push button','Auto',Rect(600,554,160,28))
+  access=ComposerAccess([editor,model]);first=access.discover(self.context())
+  model.showing=False;second=access.discover(self.context())
+  self.assertIsNone(second.model);self.assertEqual(first.identity(),second.identity())
+  model.showing=True;third=access.discover(self.context(),fresh=True)
+  self.assertIs(third.model,model)
  def test_question_reply_is_never_an_optimization_target(self):
   for label in ('Reply…','Reply...','Or write your own response','回复'):
    reply=ComposerNode('entry',label,Rect(100,520,650,40))

@@ -49,6 +49,11 @@ def handle(request):
     buffer=editor.get_buffer()
     if operation == "set":
         buffer.set_text(request["text"])
+    elif operation == "account":
+        editor.get_accessible().set_name(request['label'])
+        buffer.set_text(request['text'])
+        models[index].set_label(request['model'])
+        models[index].set_visible(bool(request['model']))
     elif operation == "new":
         create("AskBetter fixture 2",request["text"])
     elif operation == "focus":

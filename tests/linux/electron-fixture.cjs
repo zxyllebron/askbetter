@@ -56,6 +56,9 @@ app.whenReady().then(async()=>{
             else
                 await window.webContents.executeJavaScript(`document.getElementById('editor').textContent=${JSON.stringify(request.text)};`);
         }
+        else if(request.op==='account') {
+            await window.webContents.executeJavaScript(`document.getElementById('editor').setAttribute('aria-label',${JSON.stringify(request.label)});document.getElementById('model').textContent=${JSON.stringify(request.model)};document.getElementById('model').setAttribute('aria-label',${JSON.stringify(request.model)});document.getElementById('model').hidden=${!request.model};document.getElementById('editor').textContent=${JSON.stringify(request.text)};`);
+        }
         else if(request.op==='chat') {
             const title=window.getTitle();
             await window.loadURL('data:text/html;charset=utf-8,'+encodeURIComponent(html(title,request.text,Boolean(request.compact),request.label || 'Work with Codex')));

@@ -97,6 +97,7 @@ final class Controller: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var modelPicker = false
     var quitting = false
     var notice = ""
+    var discoveryDiagnostic: [String: Any] = [:]
     var lastInput = ""
     var lastResult = ""
     var target: ComposerTarget?
@@ -175,8 +176,10 @@ final class Controller: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func setNotice(_ value:String) {
+        let changed = notice != value
         notice=value; wand.toolTip="优化提示词 · "+caption+(value.isEmpty ? "" : "\n"+value)
         statusLabel?.stringValue=value.isEmpty ? caption : value
+        if changed { refreshStatusMenu() }
     }
 
     func layoutChanged(invalidate: Bool = false) {
@@ -199,7 +202,7 @@ final class Controller: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func isCodex(_ app:NSRunningApplication) -> Bool {
         let name=app.localizedName?.lowercased() ?? ""
-        return name == "codex" || name == "chatgpt"
+        return name == "codex" || name == "chatgpt" || ["com.openai.codex","com.openai.chat"].contains(app.bundleIdentifier?.lowercased() ?? "")
     }
 
     func watch(_ target:ComposerTarget) {
@@ -227,7 +230,8 @@ final class Controller: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func track() {
-        guard !quitting, !standalone, !modelPicker, AXIsProcessTrusted(), let app=NSWorkspace.shared.frontmostApplication,
+        guard AXIsProcessTrusted() else { circle.orderOut(nil); setNotice("需要辅助功能权限：系统设置 → 隐私与安全性 → 辅助功能 → AskBetter"); return }
+        guard !quitting, !standalone, !modelPicker, let app=NSWorkspace.shared.frontmostApplication,
               !app.isTerminated, !app.isHidden, isCodex(app) else { circle.orderOut(nil); return }
         guard !scanInProgress else { return }
         scanInProgress=true
@@ -235,21 +239,24 @@ final class Controller: NSObject, NSApplicationDelegate, NSWindowDelegate {
         scanning.async {
             let result:Result<ComposerTarget,Error>
             do { result = .success(try self.desktop.discover(pid:pid)) } catch { result = .failure(error) }
+            let diagnostic = self.desktop.diagnostic
             DispatchQueue.main.async {
                 self.scanInProgress=false
                 guard !self.quitting, !self.standalone, !self.modelPicker, self.generation == stamp,
                       NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else { return }
+                self.discoveryDiagnostic=diagnostic
                 switch result {
                 case .failure(let error): self.circle.orderOut(nil); self.setNotice(error.localizedDescription)
                 case .success(let target):
                     self.target=target; self.watch(target)
-                    guard let model=rectangle(target.model) else { self.circle.orderOut(nil); return }
-                    let rect=buttonAnchor(model,size:(self.settings["buttonSize"] as? Double ?? 26),gap:(self.settings["anchorGap"] as? Double ?? 8))
+                    guard let input=rectangle(target.editor), let window=rectangle(target.window),
+                          let rect=composerAnchor(input,model:target.model.flatMap { rectangle($0) },window:window,
+                              size:(self.settings["buttonSize"] as? Double ?? 26),gap:(self.settings["anchorGap"] as? Double ?? 8)) else { self.circle.orderOut(nil); return }
                     guard self.gate.update(rect,now:ProcessInfo.processInfo.systemUptime) else { self.circle.orderOut(nil); return }
                     let top=NSScreen.screens.first?.frame.maxY ?? 0
                     self.circle.setFrame(NSRect(x:rect.x,y:top-rect.y-rect.height,width:rect.width,height:rect.height),display:true)
                     self.circle.orderFrontRegardless()
-                    self.wand.toolTip="优化提示词 · "+self.caption+(self.notice.isEmpty ? "" : "\n"+self.notice)
+                    self.setNotice("")
                 }
             }
         }
@@ -273,11 +280,25 @@ final class Controller: NSObject, NSApplicationDelegate, NSWindowDelegate {
         guard statusItem != nil else { return }
         let menu=optionsMenu(inPanel:standalone)
         menu.addItem(.separator())
+        let status=NSMenuItem(title:notice.isEmpty ? "自动识别当前输入框；不绑定登录账号" : notice,action:nil,keyEquivalent:"")
+        status.isEnabled=false; menu.addItem(status)
+        let diagnostic=NSMenuItem(title:"复制诊断信息（不含草稿或账号）",action:#selector(copyDiagnostic),keyEquivalent:"")
+        diagnostic.target=self; menu.addItem(diagnostic)
         for (label,action,key) in [("撤销上次优化",#selector(undo),"z"),("退出 AskBetter",#selector(quit),"q")] {
             let item=NSMenuItem(title:label,action:action,keyEquivalent:key)
             item.target=self; item.keyEquivalentModifierMask=[.control,.option]; menu.addItem(item)
         }
         statusItem?.menu=menu
+    }
+
+    @objc func copyDiagnostic() {
+        let front=NSWorkspace.shared.frontmostApplication
+        let report:[String:Any] = ["accessibility":AXIsProcessTrusted(),"uiMode":standalone ? "standalone" : "initial",
+            "frontApp":front?.localizedName ?? "", "frontBundle":front?.bundleIdentifier ?? "",
+            "recognizedApp":front.map { isCodex($0) } ?? false,"circleVisible":circle.isVisible,"discovery":discoveryDiagnostic]
+        if let data=try? JSONSerialization.data(withJSONObject:report,options:[.prettyPrinted,.sortedKeys]),let text=String(data:data,encoding:.utf8) {
+            NSPasteboard.general.clearContents(); NSPasteboard.general.setString(text,forType:.string)
+        }
     }
 
     @objc func selectStyle(_ sender:NSMenuItem) {
@@ -414,7 +435,52 @@ final class Controller: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 }
 
-if let probe=CommandLine.arguments.firstIndex(of:"--window-lifecycle-probe"), CommandLine.arguments.count>probe+2 {
+if let probe=CommandLine.arguments.firstIndex(of:"--account-layout-probe"), CommandLine.arguments.count>probe+2 {
+    let app=NSApplication.shared
+    app.setActivationPolicy(.accessory)
+    let pid=pid_t(CommandLine.arguments[probe+1])!
+    let folder=URL(fileURLWithPath:CommandLine.arguments[probe+2],isDirectory:true)
+    guard let fixture=NSRunningApplication(processIdentifier:pid),
+          fixture.bundleIdentifier == "io.github.zxyllebron.askbetter.fixture",AXIsProcessTrusted() else { exit(1) }
+    fixture.activate(options:[])
+    let controller=Controller()
+    controller.settings["uiMode"]="initial"
+    controller.applicationDidFinishLaunching(Notification(name:NSApplication.didFinishLaunchingNotification))
+    let access=DesktopAccess()
+    let cases:[(String,String,Bool)] = [("GPT-4o","Message ChatGPT",false),("Auto","Ask anything",false),
+        ("Thinking","Ask ChatGPT",false),("Select ChatGPT model","Work with ChatGPT",false),
+        ("选择模型","输入消息",false),("","Message ChatGPT",true),("GPT-6 Luna","Work with Codex",false)]
+    var index=0, pending=false, attempts=0
+    var reports:[[String:Any]]=[]
+    let timer=Timer(timeInterval:0.1,repeats:true) { _ in
+        attempts += 1
+        guard attempts<600 else { print("Account-layout probe timeout at case \(index)"); exit(1) }
+        if index == cases.count {
+            try! JSONSerialization.data(withJSONObject:["layouts":reports,"realCodex":false,"requiresAccount":false],options:[.prettyPrinted,.sortedKeys]).write(to:folder.appendingPathComponent("account-layouts.json"))
+            controller.applicationWillTerminate(Notification(name:NSApplication.willTerminateNotification)); exit(0)
+        }
+        let value=cases[index], draft="Layout \(index): IMU / UDP"
+        let identifier=100+index
+        if !pending {
+            pending=true; controller.layoutChanged(invalidate:true)
+            try! JSONSerialization.data(withJSONObject:["id":identifier,"text":draft,"editorLabel":value.1,"modelLabel":value.0,"modelHidden":value.2]).write(to:folder.appendingPathComponent("command.json"),options:.atomic)
+            return
+        }
+        guard let data=try? Data(contentsOf:folder.appendingPathComponent("reply.json")),
+              let reply=try? JSONSerialization.jsonObject(with:data) as? [String:Any],reply["id"] as? Int == identifier,
+              let target=try? access.discover(pid:pid,fresh:true),(try? target.read()) == draft,
+              controller.circle.isVisible,let shown=controller.target,(try? shown.read()) == draft else { return }
+        pending=false
+        // The native fixture exposes writable AXValue, so completion is immediate.
+        access.replace(target,expected:draft,result:"Optimized: "+draft) { error in
+            guard error == nil,(try? target.read()) == "Optimized: "+draft else { print(error?.localizedDescription ?? "Replacement mismatch"); exit(1) }
+            reports.append(["modelLabel":value.0,"editorLabel":value.1,"noPicker":value.2,"circle":true,"replacement":true])
+            index += 1
+        }
+    }
+    RunLoop.main.add(timer,forMode:.common)
+    app.run()
+} else if let probe=CommandLine.arguments.firstIndex(of:"--window-lifecycle-probe"), CommandLine.arguments.count>probe+2 {
     let app=NSApplication.shared
     app.setActivationPolicy(.accessory)
     let pid=pid_t(CommandLine.arguments[probe+1])!
@@ -437,15 +503,15 @@ if let probe=CommandLine.arguments.firstIndex(of:"--window-lifecycle-probe"), Co
         if stage == 0 && controller.circle.isVisible && !controller.scanInProgress {
             _ = try! access.discover(pid:pid,fresh:true)
             controller.scanInProgress=true; hiddenAt=ProcessInfo.processInfo.systemUptime
-            command(["id":2,"minimized":true]); stage=1
+            command(["id":202,"minimized":true]); stage=1
         } else if stage == 1 && !controller.circle.isVisible {
             latencies["minimize"]=(ProcessInfo.processInfo.systemUptime-hiddenAt)*1000
             minimizedRejected=(try? access.discover(pid:pid)) == nil
             controller.scanInProgress=false
-            command(["id":3,"minimized":false,"focus":true]); stage=2
+            command(["id":203,"minimized":false,"focus":true]); stage=2
         } else if stage == 2 && controller.circle.isVisible && !controller.scanInProgress {
             controller.scanInProgress=true; hiddenAt=ProcessInfo.processInfo.systemUptime
-            command(["id":4,"close":true]); stage=3
+            command(["id":204,"close":true]); stage=3
         } else if stage == 3 && !controller.circle.isVisible {
             latencies["close"]=(ProcessInfo.processInfo.systemUptime-hiddenAt)*1000
             let report:[String:Any]=["minimizeHides":true,"closeHides":true,"minimizedOwnerRejected":minimizedRejected,

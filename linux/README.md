@@ -1,5 +1,7 @@
 # AskBetter for Ubuntu 24.04
 
+Button discovery is local and account-independent. Different model labels (including Auto and generic selectors) are accepted, and a labelled main composer can be located without a model picker. Search and reply fields are excluded. No author account, login whitelist, or Codex rules file is required. Use your own signed-in CLI with access to the configured optimization model/Fast mode. A new Linux system user must run the installer for their own GNOME desktop session; changing only the Codex/ChatGPT login needs no reinstall.
+
 Target: Ubuntu 24.04 with the default GNOME 46 desktop, in either an X11 or Wayland session. KDE and other compositors are not supported by this extension.
 
 This is a preview port. See the repository's platform test report for verified checks and remaining real-Codex validation. Do not interpret a passing build or simulated editor test as full client compatibility.
