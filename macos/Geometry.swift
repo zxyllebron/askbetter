@@ -33,16 +33,22 @@ func excludedEditor(_ text: String) -> Bool {
 
 // A labelled composer remains usable when an account has no model picker.
 // Keep the fallback outside editable text; never guess from draft contents.
-func composerAnchor(_ editor: ABRect, model: ABRect?, window: ABRect, size: Double = 26, gap: Double = 8) -> ABRect? {
+func composerAnchor(_ editor: ABRect, model: ABRect?, window: ABRect, size: Double = 26, gap: Double = 8, obstacles: [ABRect] = []) -> ABRect? {
     if let model = model {
         if model.x >= editor.right && model.y < editor.bottom {
             return ABRect(x:model.x-gap-size,y:editor.y-gap-size,width:size,height:size)
         }
         return buttonAnchor(model,size:size,gap:gap)
     }
-    let y = editor.bottom+gap+size+gap <= window.bottom ? editor.bottom+gap : editor.y-gap-size
-    guard y >= window.y, y+size <= window.bottom, editor.width >= size+2*gap else { return nil }
-    return ABRect(x:editor.right-gap-size,y:y,width:size,height:size)
+    func overlaps(_ a:ABRect,_ b:ABRect) -> Bool { a.x < b.right && a.right > b.x && a.y < b.bottom && a.bottom > b.y }
+    var candidates=obstacles.filter { nearModel(editor,$0) && $0.x >= editor.x+editor.width/2 && $0.y >= editor.bottom-8 }
+        .sorted { $0.x < $1.x }.map { buttonAnchor($0,size:size,gap:gap) }
+    candidates += [ABRect(x:editor.right-gap-size,y:editor.bottom+gap,width:size,height:size),
+                   ABRect(x:editor.right-gap-size,y:editor.y-gap-size,width:size,height:size)]
+    return candidates.first { r in
+        r.x >= window.x && r.right <= window.right && r.y >= window.y && r.bottom <= window.bottom &&
+        !overlaps(r,editor) && !obstacles.contains { overlaps(r,$0) }
+    }
 }
 
 func buttonAnchor(_ model: ABRect, size: Double = 26, gap: Double = 8) -> ABRect {

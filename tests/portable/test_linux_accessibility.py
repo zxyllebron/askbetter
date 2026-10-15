@@ -138,6 +138,11 @@ class ChatLayoutTests(unittest.TestCase):
    editor=ComposerNode('entry',label,Rect(100,480,700,70))
    with self.assertRaisesRegex(RuntimeError,'input box/model selector'):
     ComposerAccess([editor]).discover(self.context())
+ def test_no_picker_fallback_does_not_cover_send(self):
+  editor=ComposerNode('entry','Message ChatGPT',Rect(100,480,700,70))
+  send=ComposerNode('push button','Send',Rect(760,558,50,30))
+  access=ComposerAccess([editor,send]);target=access.discover(self.context())
+  self.assertLess(access.position(target).right,send.rect.x)
  def test_account_picker_disappears_and_reappears(self):
   editor=ComposerNode('entry','Message ChatGPT',Rect(100,480,700,70))
   model=ComposerNode('push button','Auto',Rect(600,554,160,28))

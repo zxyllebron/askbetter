@@ -18,6 +18,9 @@ struct Checks {
         precondition(nearModel(compact,ABRect(x:504,y:700,width:100,height:30)))
         precondition(composerAnchor(compact,model:ABRect(x:504,y:700,width:100,height:30),window:window)!.bottom < compact.y)
         precondition(composerAnchor(ABRect(x:100,y:760,width:400,height:36),model:nil,window:window)!.bottom < 760)
+        let send=ABRect(x:760,y:388,width:50,height:30)
+        let fallback=composerAnchor(editor,model:nil,window:window,obstacles:[send])!
+        precondition(fallback.right < send.x && fallback.y >= editor.bottom)
         var gate=SettleGate()
         precondition(!gate.update(model,now:0))
         precondition(gate.update(model,now:0.31))

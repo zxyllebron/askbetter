@@ -29,6 +29,7 @@ class FeatureTests {
   foreach(string name in new[]{"GPT-4o","Auto","Thinking","Select ChatGPT model","选择模型"})Require(Desktop.IsModelLabel(name),"Account-independent model label: "+name);
   Require(Desktop.ComposerPlacement(inputRect,Rect.Empty,new Rect(0,0,1200,900),26,8)==new Rect(966,708,26,26),"No-picker account anchors outside the draft");
   Require(Desktop.ComposerPlacement(inputRect,Rect.Empty,new Rect(0,0,1200,710),26,8).Bottom<inputRect.Top,"No-picker compact fallback stays outside text");
+  var sendRect=new Rect(950,708,50,30);Require(Desktop.ComposerPlacement(inputRect,Rect.Empty,new Rect(0,0,1200,900),26,8,new[]{sendRect}).Right<sendRect.Left,"No-picker fallback must not cover Send");
   typeof(Desktop).GetField("lastDiscovery",BindingFlags.NonPublic|BindingFlags.Instance).SetValue(desktop,DateTime.UtcNow);int beforeInvalidation=desktopGate.Generation;Method("InvalidateComposer").Invoke(desktop,null);Require((DateTime)typeof(Desktop).GetField("lastDiscovery",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(desktop)==DateTime.MinValue&&desktopGate.Generation==beforeInvalidation,"Chat clicks should rediscover controls without treating them as zoom");
   foreach(string style in new[]{"brief","moderate","detailed"}){
    var item=initial.Items.Cast<MenuItem>().Single(x=>Convert.ToString(x.Tag)==style);item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));

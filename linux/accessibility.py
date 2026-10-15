@@ -22,6 +22,7 @@ class Target:
     model: object
     context: dict
     has_reply: bool = False
+    obstacles: tuple = ()
 
     def identity(self):
         return (self.context["pid"], self.context["windowId"], self.context["title"],
@@ -134,7 +135,7 @@ class DesktopAccess:
         if not context or not isinstance(context.get("pid"), int) or context["pid"] <= 0:
             self.cached = None
             return None
-        if not fresh and self.cached and time.monotonic()-self.last_discovery < 1:
+        if not fresh and self.cached and self.cached.model is not None and time.monotonic()-self.last_discovery < 1:
             previous = self.cached.context
             if all(context.get(key) == previous.get(key) for key in ("pid", "windowId", "title")):
                 try:
@@ -167,15 +168,17 @@ class DesktopAccess:
         if len(frames) != 1:
             raise RuntimeError("Cannot uniquely identify the foreground Codex window")
         frame = frames[0]
-        editors, models = [], []
+        editors, models, controls = [], [], []
         for node in self._nodes(frame):
             try:
                 if not self._visible(node):
                     continue
                 role = node.getRoleName()
                 rect = self._rectangle(node)
-                if role in ("push button", "button", "combo box") and MODEL.search(node.name or ""):
-                    models.append((node, rect))
+                if role in ("push button", "button", "combo box"):
+                    controls.append(rect)
+                    if MODEL.search(node.name or ""):
+                        models.append((node, rect))
                 elif role in ("text", "entry") and node.getState().contains(self.api.STATE_EDITABLE):
                     node.queryText()
                     editors.append((node, rect))
@@ -200,7 +203,7 @@ class DesktopAccess:
                          0 <= editor_rect.y-rect.bottom <= 160 and
                          rect.x < editor_rect.right and rect.right > editor_rect.x))
                         for node, rect in editors)
-        target = Target(app, frame, editor, model, dict(context), has_reply)
+        target = Target(app, frame, editor, model, dict(context), has_reply, tuple(controls))
         # Check the interface here; reading/validating rich content happens when
         # optimizing. A malformed draft must not make the button disappear.
         target.editor.queryText()
@@ -218,10 +221,19 @@ class DesktopAccess:
             buffer = client
         editor = to_shell(self._rectangle(target.editor), frame, buffer)
         if target.model is None:
-            y = editor.bottom+gap if editor.bottom+size+2*gap <= buffer.bottom else editor.y-gap-size
-            if y < buffer.y or y+size > buffer.bottom or editor.width < size+2*gap:
-                raise RuntimeError("No safe space beside the labelled composer")
-            return Rect(editor.right-gap-size, y, size, size)
+            controls = [to_shell(rect, frame, buffer) for rect in target.obstacles]
+            toolbar = sorted((rect for rect in controls if near_model(editor, rect)
+                              and rect.x >= editor.x+editor.width/2 and rect.y >= editor.bottom-8), key=lambda rect: rect.x)
+            candidates = [anchor(rect, size, gap) for rect in toolbar]
+            candidates += [Rect(editor.right-gap-size, editor.bottom+gap, size, size),
+                           Rect(editor.right-gap-size, editor.y-gap-size, size, size)]
+            def overlaps(a, b):
+                return a.x < b.right and a.right > b.x and a.y < b.bottom and a.bottom > b.y
+            for rect in candidates:
+                if (buffer.x <= rect.x and rect.right <= buffer.right and buffer.y <= rect.y and rect.bottom <= buffer.bottom
+                        and not overlaps(rect, editor) and not any(overlaps(rect, other) for other in controls)):
+                    return rect
+            raise RuntimeError("No safe space beside the labelled composer")
         model = to_shell(self._rectangle(target.model), frame, buffer)
         if model.x >= editor.right and model.y < editor.bottom and model.bottom > editor.y:
             if target.has_reply:

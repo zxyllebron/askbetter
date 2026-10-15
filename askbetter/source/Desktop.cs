@@ -66,7 +66,12 @@ public sealed partial class Desktop : Window {
  public static bool IsModelLabel(string name){return Regex.IsMatch(name??"","GPT[ .-]?[0-9]|(?:select|choose|change).*model|选择.*模型|切换.*模型|^(?:Auto|Automatic|Instant|Thinking|Pro|Fast|自动|快速|思考|ChatGPT|Codex)$",RegexOptions.IgnoreCase);}
  public static bool IsComposerLabel(string name){return Regex.IsMatch(name??"","^(?:Work with (?:Codex|ChatGPT)|Ask (?:Codex|ChatGPT|anything)|Message(?: (?:Codex|ChatGPT))?|Send a message|Type a message|输入(?:消息|提示词)|发送消息|向.*发送消息|询问.*|有什么可以帮忙的)[. …。]*$",RegexOptions.IgnoreCase);}
  public static bool ExcludedEditor(string name){return Regex.IsMatch(name??"","search|find|reply|response|answer|rename|title|搜索|查找|回复|回答|重命名|标题",RegexOptions.IgnoreCase);}
- public static Rect ComposerPlacement(Rect input,Rect model,Rect window,double size,double gap){if(!model.IsEmpty){if(model.Left>=input.Right&&model.Top<input.Bottom)return new Rect(model.Left-gap-size,input.Top-gap-size,size,size);return new Rect(model.Left-gap-size,model.Top+(model.Height-size)/2,size,size);}if(input.IsEmpty||window.IsEmpty||input.Width<size+2*gap)return Rect.Empty;double y=input.Bottom+gap+size+gap<=window.Bottom?input.Bottom+gap:input.Top-gap-size;return y>=window.Top&&y+size<=window.Bottom?new Rect(input.Right-gap-size,y,size,size):Rect.Empty;}
+ public static Rect ComposerPlacement(Rect input,Rect model,Rect window,double size,double gap,Rect[] obstacles=null){
+  if(!model.IsEmpty){if(model.Left>=input.Right&&model.Top<input.Bottom)return new Rect(model.Left-gap-size,input.Top-gap-size,size,size);return new Rect(model.Left-gap-size,model.Top+(model.Height-size)/2,size,size);}if(input.IsEmpty||window.IsEmpty||input.Width<size+2*gap)return Rect.Empty;
+  obstacles=obstacles??new Rect[0];var candidates=new List<Rect>();foreach(var control in obstacles.Where(r=>ComposerNearModel(input,r)&&r.Left>=input.Left+input.Width/2&&r.Top>=input.Bottom-8).OrderBy(r=>r.Left))candidates.Add(new Rect(control.Left-gap-size,control.Top+(control.Height-size)/2,size,size));
+  candidates.Add(new Rect(input.Right-gap-size,input.Bottom+gap,size,size));candidates.Add(new Rect(input.Right-gap-size,input.Top-gap-size,size,size));
+  foreach(var r in candidates)if(window.Contains(r)&&!r.IntersectsWith(input)&&!obstacles.Any(o=>r.IntersectsWith(o)))return r;return Rect.Empty;
+ }
  AutomationElementCollection ModelControls(AutomationElement root){return root.FindAll(TreeScope.Descendants,new OrCondition(new PropertyCondition(AutomationElement.ControlTypeProperty,ControlType.Button),new PropertyCondition(AutomationElement.ControlTypeProperty,ControlType.ComboBox)));}
  bool ModelForEditor(AutomationElement model,Rect input){try{var c=model.Current;return !c.IsOffscreen&&(IsModelLabel(c.Name)||IsModelLabel(c.HelpText)||Regex.IsMatch(c.Name??"",settings.modelNamePattern))&&ComposerNearModel(input,c.BoundingRectangle);}catch{return false;}}
  AutomationElement FindComposer(AutomationElement root){AutomationElement ignored;return FindComposer(root,out ignored);}
@@ -88,14 +93,14 @@ public sealed partial class Desktop : Window {
    if(h!=owner && h!=selfHandle)return (Rect?)null;
    var root=AutomationElement.FromHandle(owner);var er=editor.Current.BoundingRectangle;
    if(er.IsEmpty||editor.Current.IsOffscreen)return (Rect?)null;
-   Rect best=Rect.Empty;
+   Rect best=Rect.Empty;var obstacles=new List<Rect>();
    if(cachedModel!=null){if(ModelForEditor(cachedModel,er))best=cachedModel.Current.BoundingRectangle;else cachedModel=null;}
    if(best.IsEmpty){var nodes=ModelControls(root);double distance=Double.MaxValue;
-    foreach(AutomationElement n in nodes){if(!ModelForEditor(n,er))continue;var r=n.Current.BoundingRectangle;double d=Math.Abs(r.Top-er.Bottom);if(d<distance){distance=d;best=r;cachedModel=n;}}
+    foreach(AutomationElement n in nodes){if(!n.Current.IsOffscreen)obstacles.Add(n.Current.BoundingRectangle);if(!ModelForEditor(n,er))continue;var r=n.Current.BoundingRectangle;double d=Math.Abs(r.Top-er.Bottom);if(d<distance){distance=d;best=r;cachedModel=n;}}
    }
    if(best.IsEmpty&&!IsComposerLabel(editor.Current.Name)&&!IsComposerLabel(editor.Current.HelpText))return (Rect?)null;
    double scale=GetDpiForWindow(owner)/96.0;double size=settings.buttonSize*scale;
-   var placement=ComposerPlacement(er,best,root.Current.BoundingRectangle,size,settings.anchorGap*scale);return placement.IsEmpty?(Rect?)null:placement;
+   var placement=ComposerPlacement(er,best,root.Current.BoundingRectangle,size,settings.anchorGap*scale,obstacles.ToArray());return placement.IsEmpty?(Rect?)null:placement;
   });
   if(closing)return;if(settings.uiMode=="standalone"){Hide();return;}if(modelPickerOpen)return;
   if(trackedOwner!=owner||!OwnerActive(trackedOwner)){Hide();return;}

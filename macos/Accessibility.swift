@@ -30,6 +30,7 @@ struct ComposerTarget {
     let title: String
     let documentTitle: String
     let document: AXUIElement?
+    var obstacles: [ABRect] = []
 
     func read() throws -> String {
         guard let value = attribute(editor, kAXValueAttribute as CFString) as? String else {
@@ -76,7 +77,7 @@ final class DesktopAccess {
             enabledAt = now
         }
         let focused = attribute(application, kAXFocusedWindowAttribute as CFString)
-        if !fresh, let target = cached, target.pid == pid, now-discoveredAt < 2,
+        if !fresh, let target = cached, target.model != nil, target.pid == pid, now-discoveredAt < 2,
            focused != nil, CFEqual(focused!, target.window),
            attribute(target.window, kAXMinimizedAttribute as CFString) as? Bool != true,
            rectangle(target.editor) != nil, (target.model == nil || rectangle(target.model!) != nil),
@@ -94,6 +95,7 @@ final class DesktopAccess {
         var stack: [(AXUIElement, AXUIElement?)] = [(window, nil)]
         var editors: [(AXUIElement, ABRect, AXUIElement?, Bool)] = []
         var models: [(AXUIElement, ABRect)] = []
+        var controls: [ABRect] = []
         var count = 0
         while let (node, parentDocument) = stack.popLast(), count < 2500 {
             count += 1
@@ -107,6 +109,7 @@ final class DesktopAccess {
                 let semantic = [kAXTitleAttribute, kAXDescriptionAttribute, "AXPlaceholderValue"].contains { composerLabel(textAttribute(node,$0 as CFString)) }
                 if attribute(node, kAXValueAttribute as CFString) is String { editors.append((node, rect, document, semantic)) }
             } else if ["AXButton", "AXPopUpButton", "AXComboBox", "AXMenuButton"].contains(role) {
+                if let rect = rectangle(node) { controls.append(rect) }
                 let names = [kAXTitleAttribute, kAXDescriptionAttribute, kAXHelpAttribute, kAXValueAttribute].map { textAttribute(node,$0 as CFString) }
                 if names.contains(where:modelLabel),
                    let rect = rectangle(node) { models.append((node, rect)) }
@@ -134,10 +137,10 @@ final class DesktopAccess {
         if !bestSemantic {
             let labelled = editors.filter { $0.3 }.sorted { $0.1.bottom > $1.1.bottom }
             if let (editor, inputRect, document, _) = labelled.first, let windowRect = windowRect,
-               composerAnchor(inputRect,model:nil,window:windowRect) != nil {
+               composerAnchor(inputRect,model:nil,window:windowRect,obstacles:controls) != nil {
                 choice = ComposerTarget(pid:pid,window:window,editor:editor,model:nil,
                     title:textAttribute(window,kAXTitleAttribute as CFString),
-                    documentTitle:document.map { textAttribute($0,kAXTitleAttribute as CFString) } ?? "",document:document)
+                    documentTitle:document.map { textAttribute($0,kAXTitleAttribute as CFString) } ?? "",document:document,obstacles:controls)
             }
         }
         diagnostic = ["nodes":count,"editors":editors.count,"modelControls":models.count,

@@ -259,7 +259,7 @@ final class Controller: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     self.target=target; self.watch(target)
                     guard let input=rectangle(target.editor), let window=rectangle(target.window),
                           let rect=composerAnchor(input,model:target.model.flatMap { rectangle($0) },window:window,
-                              size:(self.settings["buttonSize"] as? Double ?? 26),gap:(self.settings["anchorGap"] as? Double ?? 8)) else { self.circle.orderOut(nil); return }
+                              size:(self.settings["buttonSize"] as? Double ?? 26),gap:(self.settings["anchorGap"] as? Double ?? 8),obstacles:target.obstacles) else { self.circle.orderOut(nil); return }
                     guard self.gate.update(rect,now:ProcessInfo.processInfo.systemUptime) else { self.circle.orderOut(nil); return }
                     let top=NSScreen.screens.first?.frame.maxY ?? 0
                     self.circle.setFrame(NSRect(x:rect.x,y:top-rect.y-rect.height,width:rect.width,height:rect.height),display:true)
