@@ -39,23 +39,32 @@ class WindowLifecycleTests {
  static void Prepare(Desktop desktop,Window window){window.Show();window.Activate();var h=Handle(window);Wait(()=>GetForegroundWindow()==h,"fixture focus");Field("owner").SetValue(desktop,h);Pump(400);desktop.Show();Pump(20);Require(desktop.IsVisible,"overlay visible over its own active fixture");Require((bool)Call(desktop,"OwnerActive",h),"active fixture accepted");}
  static void HideCheck(Desktop desktop,string reason,Action operation){int stamp=((LayoutGate)Field("layoutGate").GetValue(desktop)).Generation;var clock=Stopwatch.StartNew();operation();Wait(()=>!desktop.IsVisible,reason,300);latency[reason]=clock.ElapsedMilliseconds;Require(clock.ElapsedMilliseconds<=150,reason+" hidden within 150 ms");Require((bool)Field("scanning").GetValue(desktop),reason+" does not wait for discovery");Require(((LayoutGate)Field("layoutGate").GetValue(desktop)).Generation>stamp,reason+" invalidates late placement");}
  static void CheckAccountLayouts(Desktop desktop,Window window){
-  window.Width=900;window.Height=600;var canvas=new Canvas();window.Content=canvas;
-  var input=new TextBox{Text="IMU / UDP",Width=700,Height=90};Canvas.SetLeft(input,40);Canvas.SetTop(input,350);canvas.Children.Add(input);
-  var model=new Button{Width=180,Height=30};Canvas.SetLeft(model,500);Canvas.SetTop(model,450);canvas.Children.Add(model);
-  var search=new TextBox{Width=200,Height=30,Text="Do not optimize"};AutomationProperties.SetName(search,"Search chats");canvas.Children.Add(search);
-  var reply=new TextBox{Width=650,Height=30,Text="Do not optimize"};AutomationProperties.SetName(reply,"Reply...");Canvas.SetLeft(reply,40);Canvas.SetTop(reply,420);canvas.Children.Add(reply);
+  // A real provider on its own UI thread, not in-process UIA calls back into
+  // the manually-pumped harness dispatcher.
+  Dispatcher provider=null;Window fixture=null;TextBox input=null;Button model=null;IntPtr handle=IntPtr.Zero;
+  using(var ready=new ManualResetEvent(false)){
+   var thread=new Thread(()=>{
+    provider=Dispatcher.CurrentDispatcher;fixture=new Window{Title="Account-layout fixture",Width=900,Height=600};var canvas=new Canvas();fixture.Content=canvas;
+    input=new TextBox{Text="IMU / UDP",Width=700,Height=90};Canvas.SetLeft(input,40);Canvas.SetTop(input,350);canvas.Children.Add(input);
+    model=new Button{Width=180,Height=30};Canvas.SetLeft(model,500);Canvas.SetTop(model,450);canvas.Children.Add(model);
+    var search=new TextBox{Width=200,Height=30,Text="Do not optimize"};AutomationProperties.SetName(search,"Search chats");canvas.Children.Add(search);
+    var reply=new TextBox{Width=650,Height=30,Text="Do not optimize"};AutomationProperties.SetName(reply,"Reply...");Canvas.SetLeft(reply,40);Canvas.SetTop(reply,420);canvas.Children.Add(reply);
+    fixture.Show();handle=Handle(fixture);ready.Set();Dispatcher.Run();
+   });thread.IsBackground=true;thread.SetApartmentState(ApartmentState.STA);thread.Start();Wait(()=>ready.WaitOne(0),"account provider ready");
+  }
+  try{
   string[] models={"GPT-4o","Auto","Thinking","Select ChatGPT model","选择模型","","GPT-6 Luna"};
   string[] labels={"Message ChatGPT","Ask anything","Ask ChatGPT","Work with ChatGPT","输入消息","Message ChatGPT","Work with Codex"};
   var find=typeof(Desktop).GetMethod("FindComposer",BindingFlags.NonPublic|BindingFlags.Instance,null,new[]{typeof(AutomationElement)},null);
-  var handle=Handle(window);
   for(int i=0;i<models.Length;i++){
-   AutomationProperties.SetName(input,labels[i]);AutomationProperties.SetName(model,models[i]);model.Visibility=models[i]==""?Visibility.Collapsed:Visibility.Visible;Pump(80);
-   var task=Task.Run(()=>(AutomationElement)find.Invoke(desktop,new object[]{AutomationElement.FromHandle(handle)}));Wait(()=>task.IsCompleted,"account-layout discovery");var found=task.GetAwaiter().GetResult();
+   int index=i;provider.Invoke(()=>{AutomationProperties.SetName(input,labels[index]);AutomationProperties.SetName(model,models[index]);model.Visibility=models[index]==""?Visibility.Collapsed:Visibility.Visible;});Pump(80);
+   var task=Task.Run(()=>(AutomationElement)find.Invoke(desktop,new object[]{AutomationElement.FromHandle(handle)}));Wait(()=>task.IsCompleted,"account-layout discovery",10000);var found=task.GetAwaiter().GetResult();
    Require(found!=null,"account-layout composer recognized: "+models[i]+" / "+labels[i]);
    var name=Task.Run(()=>found.Current.Name);Wait(()=>name.IsCompleted,"account-layout name");Require(name.Result==labels[i],"search and reply ignored for "+labels[i]);
   }
-  AutomationProperties.SetName(input,"Search messages");model.Visibility=Visibility.Collapsed;Pump(80);
-  var absent=Task.Run(()=>(AutomationElement)find.Invoke(desktop,new object[]{AutomationElement.FromHandle(handle)}));Wait(()=>absent.IsCompleted,"search-only layout");Require(absent.GetAwaiter().GetResult()==null,"no circle target on login/search-only screen");
+  provider.Invoke(()=>{AutomationProperties.SetName(input,"Search messages");model.Visibility=Visibility.Collapsed;});Pump(80);
+  var absent=Task.Run(()=>(AutomationElement)find.Invoke(desktop,new object[]{AutomationElement.FromHandle(handle)}));Wait(()=>absent.IsCompleted,"search-only layout",10000);Require(absent.GetAwaiter().GetResult()==null,"no circle target on login/search-only screen");
+  }finally{provider.Invoke(()=>fixture.Close());provider.BeginInvokeShutdown(DispatcherPriority.Send);}
  }
  [STAThread] static int Main(string[] args){
   Desktop desktop=null;Window first=null,other=null,delayed=null;Dispatcher delayedDispatcher=null;Thread delayedThread=null;

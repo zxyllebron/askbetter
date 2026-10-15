@@ -14,10 +14,10 @@ Windows 上的 Codex 桌面提示词优化助手。点击输入框模型选择�
 
 | 平台 | 下载 | 使用说明 |
 | --- | --- | --- |
-| Windows 10/11 | [Windows ZIP](https://github.com/zxyllebron/askbetter/releases/download/v1.0.1/AskBetter-Windows.zip) | 下方直接使用步骤 |
-| macOS 13+，Apple Silicon | [Mac arm64 ZIP](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.5/AskBetter-macOS-arm64.zip) | [Mac 说明](https://github.com/zxyllebron/askbetter/blob/main/macos/README.md) |
-| macOS 13+，Intel | [Mac x86_64 ZIP](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.5/AskBetter-macOS-x86_64.zip) | [Mac 说明](https://github.com/zxyllebron/askbetter/blob/main/macos/README.md) |
-| Ubuntu 24.04，GNOME 46 | [Ubuntu X11/Wayland 包](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.5/AskBetter-Ubuntu-24.04-GNOME.tar.gz) | [Ubuntu 说明](https://github.com/zxyllebron/askbetter/blob/main/linux/README.md) |
+| Windows 10/11 | [Windows ZIP](https://github.com/zxyllebron/askbetter/releases/download/v1.0.2/AskBetter-Windows.zip) | 下方直接使用步骤 |
+| macOS 13+，Apple Silicon | [Mac arm64 ZIP](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.6/AskBetter-macOS-arm64.zip) | [Mac 说明](https://github.com/zxyllebron/askbetter/blob/main/macos/README.md) |
+| macOS 13+，Intel | [Mac x86_64 ZIP](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.6/AskBetter-macOS-x86_64.zip) | [Mac 说明](https://github.com/zxyllebron/askbetter/blob/main/macos/README.md) |
+| Ubuntu 24.04，GNOME 46 | [Ubuntu X11/Wayland 包](https://github.com/zxyllebron/askbetter/releases/download/v1.1.0-preview.6/AskBetter-Ubuntu-24.04-GNOME.tar.gz) | [Ubuntu 说明](https://github.com/zxyllebron/askbetter/blob/main/linux/README.md) |
 
 Mac 和 Ubuntu 目前作为预览版发布。已完成的系统接口测试、模拟编辑器测试与尚需真实 Codex 客户端验证的项目，见[平台测试报告](https://github.com/zxyllebron/askbetter/blob/main/docs/platform-testing.md)。[Windows v1.0.0](https://github.com/zxyllebron/askbetter/releases/tag/v1.0.0) 仍可下载。
 

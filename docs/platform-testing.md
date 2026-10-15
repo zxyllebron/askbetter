@@ -18,6 +18,7 @@ Native Apple Silicon and Intel builds use Swift/AppKit and a bundled Python 3.12
 - Native standalone rendering, five menu labels, Enter, Shift+Enter, repeated Enter, and marked-text confirmation handling.
 - Real cross-process Accessibility reading/replacement against a separate native AppKit editor fixture, rejecting changed drafts/window titles and never clicking Send.
 - Actual controller/AX-observer checks for minimize and last-window close while discovery is deliberately blocked; minimized windows cannot reuse cached editor controls.
+- Seven account-layout variants in the same running native fixture (GPT-4o, Auto, Thinking, generic/localized selectors, no picker, and Codex). Each must display the circle and replace the selected draft without Send. This tests UI differences without an account login; it does not impersonate real subscriptions.
 
 The release is not Apple-notarized. Real Codex contenteditable behavior, attachments, clipboard fallback, multiple displays, full-screen Spaces, and input methods require validation on target client versions.
 
@@ -26,6 +27,8 @@ The release is not Apple-notarized. Real Codex contenteditable behavior, attachm
 Target: GNOME 46. Desktop CI uses separate X11 and nested Wayland sessions. The test pipeline exercises the actual GNOME extension, AT-SPI adapter, asynchronous service, and a fake app-server with real editor windows.
 
 Checks cover the circular button's 26-pixel size and five-item menu, input/model-selector positioning, three mode requests, replacement and undo, edits made while waiting, same text in another window, and hide/reappear behavior during resizing.
+
+Both X11 and Wayland additionally exercise five account-layout variants through real GTK and Electron Accessibility controls: GPT-4o, Auto, generic ChatGPT picker, absent picker, and return to Codex. Every variant must show the circle, replace, and undo. Portable regressions reject search/reply/unknown inputs without a reliable composer label. Windows native UIA checks exercise seven equivalent label/picker variants, decoy search/reply fields and a search-only screen, while placement checks cover no-picker fallback. No test or release package contains a personal Codex login.
 
 Lifecycle checks minimize, hide, restore, and close the last editor window while polling is blocked and the menu is open. The circle must disappear without a backend response and remain hidden after delayed state could arrive.
 

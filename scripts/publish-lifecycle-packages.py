@@ -1,4 +1,4 @@
-"""Publish the tested lifecycle-fix artifacts without a local download/upload hop."""
+"""Publish verified platform artifacts without a local download/upload hop."""
 import hashlib
 import json
 import os
@@ -35,10 +35,10 @@ with zipfile.ZipFile(reports,'w',compression=zipfile.ZIP_DEFLATED) as archive:
         f'Source commit: {sha}\nCI: {base}/actions/runs/{run}\nNative editor fixtures are not signed-in Codex clients.\n')
 
 for tag,filenames,title,notes_file,preview in (
-    ('v1.0.1',expected[:1],'AskBetter v1.0.1 — Windows window lifecycle fixes',
-     '.github/releases/windows-v1.0.1.md',False),
-    ('v1.1.0-preview.5',expected,'AskBetter Preview 5 — Window lifecycle cleanup',
-     '.github/releases/native-preview5.md',True)):
+    ('v1.0.2',expected[:1],'AskBetter v1.0.2 — Account-independent composer detection',
+     '.github/releases/windows-v1.0.2.md',False),
+    ('v1.1.0-preview.6',expected,'AskBetter Preview 6 — Account-independent composer detection',
+     '.github/releases/native-preview6.md',True)):
     folder=output/tag
     folder.mkdir(exist_ok=True)
     for filename in filenames:

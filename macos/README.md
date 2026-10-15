@@ -30,8 +30,6 @@ The three editable prompt files are in `AskBetter.app/Contents/Resources/prompts
 
 The original draft, window, and document are checked before replacement. Changed drafts are preserved; errors/results can be viewed in the standalone dialog. Direct Accessibility writes are preferred; verified Cmd+A/Cmd+V is used only if the editor is readable but its text value cannot be set. The clipboard is restored if nobody changes it during replacement. Return is never sent. Attachment preservation and cursor behavior need target-client verification.
 
-## Build
-
 ## Account-independent discovery and troubleshooting
 
 The circle is not gated on an account, subscription, CLI login, or optimization model. AskBetter recognizes model selectors across account layouts (including GPT-4o, Auto, Thinking and generic/localized selectors), and can anchor to a labelled main composer if no model picker is exposed. An unreadable or unrecognized editor is not modified. The selected optimization model remains separate from the model displayed in the chat.
