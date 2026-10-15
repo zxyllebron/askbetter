@@ -1,0 +1,47 @@
+name: Publish verified platform packages
+on:
+  workflow_dispatch:
+    inputs:
+      build_run:
+        description: Successful Platform builds and checks run ID
+        required: true
+      source_sha:
+        description: Exact source commit tested by that run
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: platform-release-publication
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      BUILD_RUN: ${{ inputs.build_run }}
+      SOURCE_SHA: ${{ inputs.source_sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check tested revision
+        run: |
+          python3 - <<'PY'
+          import json,os,re,subprocess
+          run,sha=os.environ['BUILD_RUN'],os.environ['SOURCE_SHA']
+          assert re.fullmatch(r'\d+',run) and re.fullmatch(r'[a-f0-9]{40}',sha)
+          result=json.loads(subprocess.check_output(['gh','api',f"repos/{os.environ['GH_REPO']}/actions/runs/{run}"]))
+          assert result['conclusion']=='success' and result['head_sha']==sha,result['conclusion']
+          assert result['head_repository']['full_name']==os.environ['GH_REPO']
+          assert result['name']=='Platform builds and checks'
+          print('Verified successful build of '+sha)
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ inputs.build_run }}
+          github-token: ${{ github.token }}
+          path: downloaded
+      - name: Assemble and publish immutable packages
+        run: python3 scripts/publish-lifecycle-packages.py downloaded
